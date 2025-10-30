@@ -2,78 +2,76 @@ import rclpy
 from rclpy.node import Node
 
 # from vn_interface.msg import Vectornav
+from wifi_interface.msg import WifiList # temp
 import serial
 import time
 import scipy as sp
+import numpy as np
 
 
 
 
-class WifiKF(Node):
+class WifiLPF(Node):
 
     def __init__(self):
-        super().__init__('minimal_publisher')
+        super().__init__('node')
 
-        # self.get_logger().info("Starting up!")
+        self.get_logger().info("Starting up")
 
-        # pub_topic = (
-        #     self.declare_parameter("pub_topic","/imu")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        input_topic = (
+            self.declare_parameter("input_topic","/raw_wifi_data")
+            .get_parameter_value()
+            .string_value
+        )
 
-        # port = (
-        #     self.declare_parameter("port","/dev/pts/8")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        output_topic = (
+            self.declare_parameter("output_topic","/filtered_wifi_data")
+            .get_parameter_value()
+            .string_value
+        )
 
-        # # Open serial port
-        # self.connected = False
-        # while not self.connected:
-        #     try:
-        #         # self.get_logger().info("Trying to connect to port")
-        #         self.serial = serial.Serial(port, 115200, timeout=0.1)
-        #         self.connected = True
-        #         self.get_logger().info("Connected to port")
-        #     except Exception as e:
-        #         self.get_logger().info("Failed to open port... trying again in 2 sec")
-        #         time.sleep(2)
+        # Establish publisher & Subscriber
+        self.subscriber = self.create_subscription(WifiList, input_topic, self.input_callback, 10)
+        self.publisher = self.create_publisher(WifiList, output_topic, 10)
 
+        # TODO: parametrize this and have it auto generate taps
+        self.taps = np.array([1])
+        self.n = len(self.taps)
 
-        # # Set IMU settings
-        # self.serial.write(b"$VNWRG,06,14*59\n")
-        # self.serial.write(b"$VNWRG,07,40*59\n")
+        self.memory = {}
 
-        # # Establish timer/publisher
-        # timer_period = 0.01  # seconds
-        # self.timer = self.create_timer(timer_period, self.timer_callback)
-
-        # self.publisher = self.create_publisher(Vectornav, pub_topic, 10)
-
-        # self.get_logger().info("Set up and working!")
+        self.get_logger().info("Set up and working")
 
 
 
 
 
-    def timer_callback(self):
-        pass
-        # # self.get_logger().info("Timer CB")
-        # while self.serial.in_waiting > 0:
-        #     serialRead = self.serial.readline().decode('utf-8')
-        #     # self.get_logger().info(f"Reading: {serialRead}")
+    def input_callback(self, msg):
+        # self.get_logger().info(f"Recv Data: {msg}")
+        new_bssids = [x.bssid for x in msg.measurements]
 
-        #     data = self.processString(serialRead)
-        #     # self.get_logger().info(f"Data: {data}")
+        for bssid, signal in self.memory.items():
+            
 
-        #     if data:
-        #         msg = self.make_message(data)
+            if bssid in new_bssids:
+                measure_list.append(measurement.rssi)
+                measure_list.pop(0)
+                
 
-        #         msg.raw_string = serialRead
+                # signal = np.array(measure_list)
+                
+                # out_signal = np.convolve(signal,self.taps)
+                self.get_logger().info(f"Measure List: {measure_list}")
 
-        #         self.publisher.publish(msg)
-        #         self.get_logger().info(f"Publishing: {msg}")
+
+        
+
+
+
+        out_msg = msg
+
+        self.publisher.publish(out_msg)
+        
 
 
 
@@ -83,7 +81,7 @@ class WifiKF(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    minimal_publisher = WifiKF()
+    minimal_publisher = WifiLPF()
 
     try:
         rclpy.spin(minimal_publisher)

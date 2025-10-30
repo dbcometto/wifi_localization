@@ -12,7 +12,7 @@ import scipy as sp
 class WifiKF(Node):
 
     def __init__(self):
-        super().__init__('minimal_publisher')
+        super().__init__('node')
 
         # self.get_logger().info("Starting up!")
 

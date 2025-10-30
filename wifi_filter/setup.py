@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'kf_node = wifi_filter.wifi_kf_node:main',
             'lpf_node = wifi_filter.wifi_lpf_node:main',
+            'driver_sim = wifi_filter.wifi_driver_sim:main',
         ],
     },
 )
