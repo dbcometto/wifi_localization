@@ -2,10 +2,10 @@
 Repo for EECE 5554 RSN Final Project
 
 
-| Package          | Description                                |
-| ---------------- | ------------------------------------------ |
-| `wifi_driver`    | Jack: Reads from wifi card                 |
-| `wifi_filter`    | Ben: LPF and Kalman Filter                 |
-| `wifi_interface` | All: Custom wifi localization messages     |
-| `wifi_launch`    | All: Launch files for full system          |
-| `wifi_predict`   | Ananda: Predicts position from wifi data   |
+| Package          | Description                                |  Owner |
+| ---------------- | ------------------------------------------ | ------ |
+| `wifi_driver`    | Reads from wifi card                       | Jack   |
+| `wifi_filter`    | LPF and Kalman Filter                      | Ben    |
+| `wifi_interface` | Custom wifi localization messages          | All    |
+| `wifi_launch`    | Launch files for full system               | All    |
+| `wifi_predict`   | Predicts position from wifi data           | Ananda |    
