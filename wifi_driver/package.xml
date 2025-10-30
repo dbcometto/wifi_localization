@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>vn_driver</name>
+  <name>wifi_driver</name>
   <version>0.0.0</version>
-  <description>Driver for GPS Puck</description>
-  <maintainer email="111076949+dbcometto@users.noreply.github.com">dbcometto</maintainer>
+  <description>Todo</description>
+  <maintainer email="todo">todo</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>

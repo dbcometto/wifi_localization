@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 from glob import glob
 import os
 
-package_name = 'wifi_driver'
+package_name = 'wifi_launch'
 
 setup(
     name=package_name,
@@ -17,14 +17,12 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='todo',
-    maintainer_email='todo',
-    description='TODO: Package description',
+    maintainer='dbcometto',
+    maintainer_email='111076949+dbcometto@users.noreply.github.com',
+    description='Launch files for the wifi localization system',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [
-            'wifi_driver = wifi_driver.wifi_driver_node:main',
-        ],
+        'console_scripts': [],
     },
 )

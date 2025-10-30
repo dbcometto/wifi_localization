@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(vn_interface)
+project(wifi_interface)
 
 # find dependencies
 
@@ -11,7 +11,7 @@ find_package(sensor_msgs REQUIRED)
 
 # declare messages and services to generate
 set(msg_files
-  "msg/Vectornav.msg"
+  "msg/WifiStrengths.msg"
 )
 set(srv_files
 )

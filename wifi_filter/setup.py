@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 from glob import glob
 import os
 
-package_name = 'vn_driver'
+package_name = 'wifi_filter'
 
 setup(
     name=package_name,
@@ -14,18 +14,18 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
         (os.path.join('share', package_name, 'config'), glob(os.path.join('config', '*.[yaml]*'))),
-        (os.path.join('share', package_name, 'msg'), glob(os.path.join('msg', '*.[msg]*'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='dbcometto',
     maintainer_email='111076949+dbcometto@users.noreply.github.com',
-    description='TODO: Package description',
+    description='Filter nodes for wifi localization',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'vn_driver = vn_driver.vn_driver:main',
+            'kf_node = wifi_filter.wifi_kf_node:main',
+            'lpf_node = wifi_filter.wifi_lpf_node:main',
         ],
     },
 )

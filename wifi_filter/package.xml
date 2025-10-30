@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>vn_driver</name>
+  <name>wifi_filter</name>
   <version>0.0.0</version>
-  <description>Driver for GPS Puck</description>
+  <description>Filter Nodes for wifi localization</description>
   <maintainer email="111076949+dbcometto@users.noreply.github.com">dbcometto</maintainer>
   <license>TODO: License declaration</license>
 

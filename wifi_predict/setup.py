@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 from glob import glob
 import os
 
-package_name = 'vn_driver'
+package_name = 'wifi_predict'
 
 setup(
     name=package_name,
@@ -14,18 +14,17 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
         (os.path.join('share', package_name, 'config'), glob(os.path.join('config', '*.[yaml]*'))),
-        (os.path.join('share', package_name, 'msg'), glob(os.path.join('msg', '*.[msg]*'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='dbcometto',
-    maintainer_email='111076949+dbcometto@users.noreply.github.com',
+    maintainer='todo',
+    maintainer_email='todo',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'vn_driver = vn_driver.vn_driver:main',
+            'wifi_predictor = wifi_predict.wifi_predict_node:main',
         ],
     },
 )
