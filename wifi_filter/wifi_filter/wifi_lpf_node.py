@@ -1,12 +1,8 @@
 import rclpy
 from rclpy.node import Node
 
-# from vn_interface.msg import Vectornav
-from wifi_interface.msg import WifiList # temp
-import serial
+from wifi_interface.msg import WifiList, WifiMeasurement
 import time
-import scipy as sp
-import numpy as np
 
 
 
@@ -14,7 +10,7 @@ import numpy as np
 class WifiLPF(Node):
 
     def __init__(self):
-        super().__init__('node')
+        super().__init__('wifi_lpf')
 
         self.get_logger().info("Starting up")
 
@@ -35,11 +31,11 @@ class WifiLPF(Node):
         self.publisher = self.create_publisher(WifiList, output_topic, 10)
 
         # TODO: parametrize this and have it auto generate taps
-        self.taps = [1,1,1,1]
+        self.taps = [0.25,0.25,0.25,0.25]
         self.n = len(self.taps)
 
-        self.memory = {} # dictionary where key is bssid and value is list of past values
-        self.index = 0 # which value is the most recent
+        self.memory = {} # dictionary where key is bssid and value is tuple of lists of past rssi and variance values
+        self.index = 0 # which value is the most recent (for circular rolling buffer)
 
         self.get_logger().info("Set up and working")
 
@@ -50,38 +46,64 @@ class WifiLPF(Node):
     def input_callback(self, msg):
         # self.get_logger().info(f"Recv Data: {msg}")
 
-        # Maybe get rid of this later
+        # Read through all measurements
         new_data = {}
-        
-        # Read through measurements
         for measurement in msg.measurements:
-            # Init new bssid
+            # Init tracking of new bssid
             if measurement.bssid not in self.memory.keys():
-                self.memory[measurement.bssid] = [0]*self.n
+                self.memory[measurement.bssid] = ([0]*self.n,[0]*self.n)
 
             # store measurement data for easy use
-            new_data[measurement.bssid] = measurement.rssi
+            new_data[measurement.bssid] = (measurement.rssi, measurement.variance)
 
-        output = {}
+        
         # Perform logic on all memory signals
-        for bssid, signal in self.memory.items():
+        output = {}
+        for bssid, (signal, variance) in self.memory.items():
 
-            signal[self.index] = new_data[bssid] if new_data[bssid] else 0
-
-            if np.all(signal==0):
-                del self.memory[bssid]
+            if bssid in new_data.keys():
+                (new_signal, new_variance) = new_data[bssid]
+                signal[self.index] = new_signal
+                variance[self.index] = new_variance 
             else:
-                output[bssid] = sum([signal[(self.index+i) % self.n] for i in range(0,self.n-1)])
+                signal[self.index] =  0
+                variance[self.index] =  0
 
-            self.index += 1
-
-
-        self.get_logger().info(f"LPF Signals: {output}")
-
+            output[bssid] = (sum([self.taps[i] * signal[(self.index-i) % (self.n)] for i in range(0,self.n)]),
+                                 sum([self.taps[i]**2 * variance[(self.index-i) % (self.n)] for i in range(0,self.n)]))
 
 
-        out_msg = msg
+        # Update rolling index
+        self.index = (self.index + 1) % (self.n)
 
+
+        # Delete noncurrent bssids
+        for bssid in list(self.memory.keys()):
+            (signal, variance) = self.memory[bssid]
+            if all([x==0 for x in signal]) and all([x==0 for x in variance]):
+                    del self.memory[bssid]
+
+
+        # Create message
+        timestamp = self.get_clock().now().to_msg()
+        out_msg = WifiList()
+        out_msg.header.frame_id = "base"
+        out_msg.header.stamp = timestamp
+
+        for bssid, (signal,variance) in output.items():
+            new_measurement = WifiMeasurement()
+            new_measurement.header.frame_id = "base"
+            new_measurement.header.stamp = timestamp
+
+            new_measurement.bssid = bssid
+            new_measurement.rssi = signal
+            new_measurement.variance = variance
+
+            out_msg.measurements.append(new_measurement)
+
+
+        # Publish
+        self.get_logger().info(f"LPF Signals: {output} {self.memory}")
         self.publisher.publish(out_msg)
         
 

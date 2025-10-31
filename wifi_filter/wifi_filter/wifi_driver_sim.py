@@ -13,7 +13,7 @@ import random
 class DriverSim(Node):
 
     def __init__(self):
-        super().__init__('node')
+        super().__init__('driver_sim')
 
         self.get_logger().info("Starting up")
 
@@ -22,6 +22,13 @@ class DriverSim(Node):
             .get_parameter_value()
             .string_value
         )
+
+        self.numSignals = (
+            self.declare_parameter("number_signals",3)
+            .get_parameter_value()
+            .integer_value
+        )
+
         # Establish subscriber
         self.publisher = self.create_publisher(WifiList, output_topic, 10)
 
@@ -31,25 +38,52 @@ class DriverSim(Node):
 
         self.get_logger().info("Set up and working")
 
+        self.starting = True
+
 
 
 
 
     def timer_callback(self):
 
-        measure = WifiMeasurement()
-
-        measure.bssid = "11:22:33:44:55:66"
-        measure.rssi = random.gauss(1,0.5)
-        measure.variance = 0.5
-        
-
         msg = WifiList()
-        msg.measurements.append(measure)
+        # measure = WifiMeasurement()
+        # measure.bssid = "11:22:33:44:55:66"
+        # measure.rssi = random.gauss(1,0.5)
+        # measure.variance = 0.5
+        # msg.measurements.append(measure)
+
+
+        # Test calculation
+        for i in range(self.numSignals):
+            measure = WifiMeasurement()
+
+            measure.bssid = "11:22:33:44:55:" + f"{i:0{2}}"
+            measure.rssi = random.gauss(1,0.5)
+            measure.variance = 0.5
+            
+
+            
+            msg.measurements.append(measure)
+
+
+
+        # Test forgetting old BSSIDs
+        if self.starting:
+            measure = WifiMeasurement()
+
+            measure.bssid = "00:00:00:00:00"
+            measure.rssi = 1.0
+            measure.variance = 10.0
+
+            msg.measurements.append(measure)
+            self.starting = False
+
+
 
         self.publisher.publish(msg)
 
-        # self.get_logger().info(f"Tx Data: {msg}")
+        self.get_logger().info(f"Tx RSSI: {msg.measurements}")
         
 
 
