@@ -14,7 +14,7 @@ def generate_launch_description():
     default_config_file = os.path.join(
         get_package_share_directory('wifi_filter'),
         'config',
-        'default_lpf_config.yaml'
+        'default_kf_config.yaml'
     )
 
 
@@ -23,14 +23,14 @@ def generate_launch_description():
 
     # la_input_topic = DeclareLaunchArgument(
     #     'input_topic', 
-    #     default_value = '/raw_wifi_data',
+    #     default_value = '/pose_estimate',
     #     description = "Input topic to filter"
     # )
     # ld.add_action(la_input_topic)
 
     # la_output_topic = DeclareLaunchArgument(
     #     'output_topic', 
-    #     default_value = '/filtered_wifi_data',
+    #     default_value = '/pose',
     #     description = "Output topic from filter"
     # )
     # ld.add_action(la_output_topic)
@@ -41,8 +41,8 @@ def generate_launch_description():
 
     lpf_node = Node(
             package='wifi_filter',
-            executable='lpf_node',
-            name='wifi_lpf',
+            executable='kf_node',
+            name='wifi_kf',
             output='screen',
             parameters=[default_config_file, {
                 # 'input_topic': LaunchConfiguration('input_topic'),
