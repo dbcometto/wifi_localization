@@ -35,10 +35,11 @@ class WifiLPF(Node):
         self.publisher = self.create_publisher(WifiList, output_topic, 10)
 
         # TODO: parametrize this and have it auto generate taps
-        self.taps = np.array([1])
+        self.taps = [1,1,1,1]
         self.n = len(self.taps)
 
-        self.memory = {}
+        self.memory = {} # dictionary where key is bssid and value is list of past values
+        self.index = 0 # which value is the most recent
 
         self.get_logger().info("Set up and working")
 
@@ -48,23 +49,34 @@ class WifiLPF(Node):
 
     def input_callback(self, msg):
         # self.get_logger().info(f"Recv Data: {msg}")
-        new_bssids = [x.bssid for x in msg.measurements]
 
-        for bssid, signal in self.memory.items():
-            
-
-            if bssid in new_bssids:
-                measure_list.append(measurement.rssi)
-                measure_list.pop(0)
-                
-
-                # signal = np.array(measure_list)
-                
-                # out_signal = np.convolve(signal,self.taps)
-                self.get_logger().info(f"Measure List: {measure_list}")
-
-
+        # Maybe get rid of this later
+        new_data = {}
         
+        # Read through measurements
+        for measurement in msg.measurements:
+            # Init new bssid
+            if measurement.bssid not in self.memory.keys():
+                self.memory[measurement.bssid] = [0]*self.n
+
+            # store measurement data for easy use
+            new_data[measurement.bssid] = measurement.rssi
+
+        output = {}
+        # Perform logic on all memory signals
+        for bssid, signal in self.memory.items():
+
+            signal[self.index] = new_data[bssid] if new_data[bssid] else 0
+
+            if np.all(signal==0):
+                del self.memory[bssid]
+            else:
+                output[bssid] = sum([signal[(self.index+i) % self.n] for i in range(0,self.n-1)])
+
+            self.index += 1
+
+
+        self.get_logger().info(f"LPF Signals: {output}")
 
 
 

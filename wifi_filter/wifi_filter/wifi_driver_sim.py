@@ -26,7 +26,7 @@ class DriverSim(Node):
         self.publisher = self.create_publisher(WifiList, output_topic, 10)
 
         # Establish timer/publisher
-        timer_period = 0.01  # seconds
+        timer_period = 1  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
         self.get_logger().info("Set up and working")
