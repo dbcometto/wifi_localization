@@ -1,10 +1,8 @@
 import rclpy
 from rclpy.node import Node
 
-# from vn_interface.msg import Vectornav
-import serial
-import time
-import scipy as sp
+from geometry_msgs.msg import PoseWithCovarianceStamped
+import numpy as np
 
 
 
@@ -12,68 +10,88 @@ import scipy as sp
 class WifiKF(Node):
 
     def __init__(self):
-        super().__init__('node')
+        super().__init__('wifi_kf')
 
-        # self.get_logger().info("Starting up!")
+        self.get_logger().info("Starting up")
 
-        # pub_topic = (
-        #     self.declare_parameter("pub_topic","/imu")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        input_topic = (
+            self.declare_parameter("input_topic","/pose_estimate")
+            .get_parameter_value()
+            .string_value
+        )
 
-        # port = (
-        #     self.declare_parameter("port","/dev/pts/8")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
-
-        # # Open serial port
-        # self.connected = False
-        # while not self.connected:
-        #     try:
-        #         # self.get_logger().info("Trying to connect to port")
-        #         self.serial = serial.Serial(port, 115200, timeout=0.1)
-        #         self.connected = True
-        #         self.get_logger().info("Connected to port")
-        #     except Exception as e:
-        #         self.get_logger().info("Failed to open port... trying again in 2 sec")
-        #         time.sleep(2)
+        output_topic = (
+            self.declare_parameter("output_topic","/pose")
+            .get_parameter_value()
+            .string_value
+        )
 
 
-        # # Set IMU settings
-        # self.serial.write(b"$VNWRG,06,14*59\n")
-        # self.serial.write(b"$VNWRG,07,40*59\n")
+        self.x = np.zeros((3,1)) # Starting state
+        self.P = 1e6*np.eye(3) # Starting state covariance
+        
+        self.Q = 1e-6*np.eye(3) # Minimal process noise
 
-        # # Establish timer/publisher
-        # timer_period = 0.01  # seconds
-        # self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.F = np.eye(3) # Stationary model
+        self.H = np.eye(3) # Directly observe all states
+        
 
-        # self.publisher = self.create_publisher(Vectornav, pub_topic, 10)
+        # Establish publisher & Subscriber
+        self.subscriber = self.create_subscription(PoseWithCovarianceStamped, input_topic, self.input_callback, 10)
+        self.publisher = self.create_publisher(PoseWithCovarianceStamped, output_topic, 10)
 
-        # self.get_logger().info("Set up and working!")
+        self.get_logger().info("Set up and working")
 
 
 
 
 
-    def timer_callback(self):
-        pass
-        # # self.get_logger().info("Timer CB")
-        # while self.serial.in_waiting > 0:
-        #     serialRead = self.serial.readline().decode('utf-8')
-        #     # self.get_logger().info(f"Reading: {serialRead}")
+    def input_callback(self, msg: PoseWithCovarianceStamped):
+        # self.get_logger().info(f"Recv Data: {msg}")
 
-        #     data = self.processString(serialRead)
-        #     # self.get_logger().info(f"Data: {data}")
+        # Get data from msg
+        z = np.array([msg.pose.pose.position.x,
+             msg.pose.pose.position.y,
+             msg.pose.pose.position.z]).reshape(-1,1)
+        
+        R = np.zeros((3,3))
+        R[0,0] = msg.pose.covariance[0]
+        R[1,1] = msg.pose.covariance[7]
+        R[2,2] = msg.pose.covariance[14]
 
-        #     if data:
-        #         msg = self.make_message(data)
 
-        #         msg.raw_string = serialRead
+        # Predict
 
-        #         self.publisher.publish(msg)
-        #         self.get_logger().info(f"Publishing: {msg}")
+        x_hat = self.F @ self.x
+        P_hat = self.F @ self.P @ self.F.T + self.Q
+
+        # Update
+        K = P_hat @ self.H.T @ np.linalg.inv((self.H @ P_hat @ self.H.T + R))
+        self.x = x_hat + K @ (z - self.H @ x_hat)
+        self.P = (np.eye(3) - K @ self.H) @ P_hat
+
+
+        # Create message
+        timestamp = self.get_clock().now().to_msg()
+        out_msg = PoseWithCovarianceStamped()
+
+        out_msg.header.frame_id = "base"
+        out_msg.header.stamp = timestamp
+
+        out_msg.pose.pose.position.x = self.x[0,0]
+        out_msg.pose.pose.position.y = self.x[1,0]
+        out_msg.pose.pose.position.z = self.x[2,0]
+
+        out_covariance = np.zeros((6, 6), dtype=np.float64)
+        out_covariance[0:3,0:3] = self.P
+        flat_out_covariance= out_covariance.flatten()
+
+        out_msg.pose.covariance = flat_out_covariance.tolist()
+
+        # Publish
+        self.get_logger().info(f"Output Pose: {out_msg}")
+        self.publisher.publish(out_msg)
+        
 
 
 
