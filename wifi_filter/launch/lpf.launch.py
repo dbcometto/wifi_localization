@@ -11,10 +11,10 @@ def generate_launch_description():
 
     #======================# Config Files #======================#
 
-    default_config_file = os.path.join(
+    config_file = os.path.join(
         get_package_share_directory('wifi_filter'),
         'config',
-        'default_lpf_config.yaml'
+        'lpf_config.yaml'
     )
 
 
@@ -44,7 +44,7 @@ def generate_launch_description():
             executable='lpf_node',
             name='wifi_lpf',
             output='screen',
-            parameters=[default_config_file, {
+            parameters=[config_file, {
                 # 'input_topic': LaunchConfiguration('input_topic'),
                 # 'output_topic': LaunchConfiguration('output_topic'),
             }]
