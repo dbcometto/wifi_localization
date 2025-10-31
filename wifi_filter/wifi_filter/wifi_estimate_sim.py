@@ -51,8 +51,8 @@ class DriverSim(Node):
         z = 0
 
         msg.pose.pose.position.x = random.gauss(x,variance)
-        msg.pose.pose.position.x = random.gauss(y,variance)
-        msg.pose.pose.position.x = random.gauss(z,variance)
+        msg.pose.pose.position.y = random.gauss(y,variance)
+        msg.pose.pose.position.z = random.gauss(z,variance)
 
 
 
