@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 
 from wifi_interface.msg import WifiList, WifiMeasurement
-import time
+from scipy.signal import firwin
 
 
 
@@ -26,16 +26,42 @@ class WifiLPF(Node):
             .string_value
         )
 
+        num_taps = (
+            self.declare_parameter("num_taps",11)
+            .get_parameter_value()
+            .integer_value
+        )
+
+        fs = (
+            self.declare_parameter("sampling_freq",1.0)
+            .get_parameter_value()
+            .double_value
+        )
+
+        fc = (
+            self.declare_parameter("cutoff_freq",0.4)
+            .get_parameter_value()
+            .double_value
+        )
+
+        window = (
+            self.declare_parameter("window","boxcar")
+            .get_parameter_value()
+            .string_value
+        )
+
+
+        # Set up filter
+        self.n = num_taps
+        self.taps = firwin(num_taps, fc, window=window, pass_zero=True, fs=fs)
+
+        # Set up tracking
+        self.memory = {} # dictionary where key is bssid and value is tuple of lists of past rssi and variance values
+        self.index = 0 # which value is the most recent (for circular rolling buffer)
+
         # Establish publisher & Subscriber
         self.subscriber = self.create_subscription(WifiList, input_topic, self.input_callback, 10)
         self.publisher = self.create_publisher(WifiList, output_topic, 10)
-
-        # TODO: parametrize this and have it auto generate taps
-        self.taps = [0.25,0.25,0.25,0.25]
-        self.n = len(self.taps)
-
-        self.memory = {} # dictionary where key is bssid and value is tuple of lists of past rssi and variance values
-        self.index = 0 # which value is the most recent (for circular rolling buffer)
 
         self.get_logger().info("Set up and working")
 

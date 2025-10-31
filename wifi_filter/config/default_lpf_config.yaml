@@ -1,0 +1,8 @@
+wifi_lpf:
+  ros__parameters:
+    input_topic: "/raw_wifi_data"
+    output_topic: "/filtered_wifi_data"
+    num_taps: 11
+    sampling_freq: 1.0
+    cutoff_freq: 0.4
+    window: "boxcar"
