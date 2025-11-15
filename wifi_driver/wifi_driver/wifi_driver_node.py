@@ -103,20 +103,27 @@ class Network_Info():
 
         Returns
         -------
-        Tuple[bool, int, float]
-            Tuple containing whether the network is active or not, the current measured RSSI, and the measured variance
+        Tuple[int, float]
+            Tuple containing the current measured RSSI, and the measured variance
         """
 
-        return (self.active, self.curr_rssi, self.variance)
+        return (self.curr_rssi, self.variance)
             
     
 class WiFi_Manager():
+    """
+    Class responsible for scanning Wi-Fi networks and maintaining info on these networks for the life of the node
+    """
 
     def __init__(self):
         wifi_bssids = {}
         networks = 0
 
     def scan_for_networks(self):
+        """
+        Scans the available Wi-Fi networks and updates the internal list of networks by adding new networks, updating existing ones, and purging unresponsive networks
+        """
+
         formatted_cmd = "/usr/bin/nmcli dev wifi list --rescan yes".split()
         formatted_output = subprocess.Popen(formatted_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode('utf-8').split("\n")
         header = formatted_output[0]
@@ -147,6 +154,24 @@ class WiFi_Manager():
         for bssid in scan_reults.keys():
             self.wifi_bssids[bssid] = Network_Info(scan_results[bssid])
             networks += 1
+
+    def get_active_networks(self):
+        """
+        Gets a list of the active networks from the managed Wi-Fi network list
+
+        Returns
+        -------
+        list[Tuple[string, int, float]]
+            List of tuples containing a Wi-Fi BSSID and corresponding RSSI measurement and variance
+        """
+        active_networks = []
+        for bssid in self.wifi_bssids.keys():
+            if self.wifi_bssids[bssid].is_active():
+                rssi, var = self.wifi_bssids[bssid].get_info()
+                active_networks.append((bssid, rssi, var))
+
+        return active_networks
+
 
 class WifiDriver(Node):
 
