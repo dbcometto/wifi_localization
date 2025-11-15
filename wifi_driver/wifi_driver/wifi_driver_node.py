@@ -5,14 +5,13 @@ from wifi_interface.msg import WifiList, WifiMeasurement
 from queue import Queue
 import serial
 import time
-import scipy as sp
+import subprocess
 
 
 class Network_Info():
     """
     Class for storing info on a network's RSSI values as they are measured multiple times
     """
-
     def __init__(self, initial_measurement):
         measurements = 0
         total = -1
@@ -29,7 +28,6 @@ class Network_Info():
         """
         Calculates the variance of the given rssis queue
         """
-
         if self.measurements > 0:
             if self.measurements > 1:
                 diffs = 0
@@ -51,9 +49,11 @@ class Network_Info():
         rssi_measurement : int, default=-1
             RSSI measurement to be added to the given `Network_Info` class
         """
-            
         out_val = self.rssis.get()
 
+        # Update the values of the network info based on the new
+        # rssi measurement as well as the one that is being bumped
+        # for being too old
         if out_val > 0 and rssi_measurement > 0:
             self.total += (rssi_measurement - out_val)
             self.active = True
@@ -82,7 +82,6 @@ class Network_Info():
         bool
             True if the network is active
         """
-
         return self.active
 
     def is_unresponsive(self):
@@ -94,7 +93,6 @@ class Network_Info():
         bool
             True if the network is unresponsive
         """
-
         return (self.measurements == 0)
 
     def get_info(self):
@@ -106,7 +104,6 @@ class Network_Info():
         Tuple[int, float]
             Tuple containing the current measured RSSI, and the measured variance
         """
-
         return (self.curr_rssi, self.variance)
             
     
@@ -114,7 +111,6 @@ class WiFi_Manager():
     """
     Class responsible for scanning Wi-Fi networks and maintaining info on these networks for the life of the node
     """
-
     def __init__(self):
         wifi_bssids = {}
         networks = 0
@@ -123,24 +119,32 @@ class WiFi_Manager():
         """
         Scans the available Wi-Fi networks and updates the internal list of networks by adding new networks, updating existing ones, and purging unresponsive networks
         """
-
+        # Execute Wi-Fi network scan using the nmcli tool on Linux
         formatted_cmd = "/usr/bin/nmcli dev wifi list --rescan yes".split()
         formatted_output = subprocess.Popen(formatted_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode('utf-8').split("\n")
         header = formatted_output[0]
         networks = formatted_output[1:-1]
 
+        # Since Wi-Fi network names are unpredictable, use the spacing of the header
+        # message returned from the scan to identify boundaries where substrings can
+        # be taken to get the different parts of the scan output
         section_boundaries = [0]
         for i in range(len(header)-1):
             if header[i] == " " and header[i+1] != " ":
                 section_boundaries.append(i+1)
         section_boundaries.append(len(header))
     
+        # Extract the bssids and rssi values from the scan results
         scan_results = {}
         for network in networks:
             bssid = network[section_boundaries[1], section_boundaries[2]].rstrip()
             rssi  = int(network[section_boundaries[6]:section_boundaries[7]].rstrip())
             scan_results[bssid] = rssi
-            
+        
+        # Go through the current list of bssids we have stored, if found in
+        # the latest scan, update their value and remove them from the scan.
+        # If not, update with a no-response. If 5 no-responses, remove them
+        # from the internal list
         for bssid in self.wifi_bssids.keys():
             if bssid in scan_results.keys():
                 self.wifi_bssids[bssid].update_info(scan_results[bssid])
@@ -151,6 +155,8 @@ class WiFi_Manager():
                     del self.wifi_bssids[bssid]
                     networks -= 1
 
+        # Go through all the Wi-Fi networks we have never seen before and
+        # add them to the internal list
         for bssid in scan_reults.keys():
             self.wifi_bssids[bssid] = Network_Info(scan_results[bssid])
             networks += 1
@@ -164,6 +170,8 @@ class WiFi_Manager():
         list[Tuple[string, int, float]]
             List of tuples containing a Wi-Fi BSSID and corresponding RSSI measurement and variance
         """
+        # Looks through internal list of Wi-Fi networks and gets
+        # networks that are active to add to return
         active_networks = []
         for bssid in self.wifi_bssids.keys():
             if self.wifi_bssids[bssid].is_active():
@@ -174,79 +182,55 @@ class WiFi_Manager():
 
 
 class WifiDriver(Node):
-
+    """
+    Wi-Fi Driver node for ROS2 to scan active Wi-Fi network BSSIDs and RSSI measurements and publish on '/wifi' topic
+    """
     def __init__(self):
-        super().__init__('minimal_publisher')
+        super().__init__('WifiDriver')
 
-        
+        self.get_logger().info("Starting Wi-Fi driver node")
+        # Setup publisher
+        self._publisher = self.create_publisher(WifiList, 'wifi', 10)
 
-        # self.get_logger().info("Starting up!")
+        # Establish timer and associated callback
+        timer_period = 5.0 # seconds
+        self._timer = self.create_timer(timer_period, self.timer_callback)
 
-        # pub_topic = (
-        #     self.declare_parameter("pub_topic","/imu")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        # Initialize Wifi_Manager instance
+        self._wifi_manager = WiFi_Manager()
 
-        # port = (
-        #     self.declare_parameter("port","/dev/pts/8")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
-
-        # # Open serial port
-        # self.connected = False
-        # while not self.connected:
-        #     try:
-        #         # self.get_logger().info("Trying to connect to port")
-        #         self.serial = serial.Serial(port, 115200, timeout=0.1)
-        #         self.connected = True
-        #         self.get_logger().info("Connected to port")
-        #     except Exception as e:
-        #         self.get_logger().info("Failed to open port... trying again in 2 sec")
-        #         time.sleep(2)
-
-
-        # # Set IMU settings
-        # self.serial.write(b"$VNWRG,06,14*59\n")
-        # self.serial.write(b"$VNWRG,07,40*59\n")
-
-        # # Establish timer/publisher
-        # timer_period = 0.01  # seconds
-        # self.timer = self.create_timer(timer_period, self.timer_callback)
-
-        # self.publisher = self.create_publisher(Vectornav, pub_topic, 10)
-
-        # self.get_logger().info("Set up and working!")
-
-
-
-
+        self.get_logger().info("Wi-Fi driver initialized")
 
     def timer_callback(self):
-        pass
+        """
+        Uses the class's instance of a WiFiManager to scan broadcasting Wi-Fi networks and construct and publish a WifiList message to the '/wifi' topic
+        """
 
-        # self.get_logger().info("Timer CB")
-        # while self.serial.in_waiting > 0:
-        #     serialRead = self.serial.readline().decode('utf-8')
-        #     # self.get_logger().info(f"Reading: {serialRead}")
+        # Scan for broadcasting Wi-Fi networks and get list of networks that responded
+        self._wifi_manager.scan_for_networks()
+        responses = self._wifi_manager.get_active_networks()
 
-        #     data = self.processString(serialRead)
-        #     # self.get_logger().info(f"Data: {data}")
+        # Create list of WiFiMeasurement sub-messages
+        measurements = []
+        for response in responses:
+            measurements.append(WifiMeasurement(bssid=response[0],rssi=response[1],variance=response[2]))
 
-        #     if data:
-        #         msg = self.make_message(data)
+        # Create overall WifiList message
+        msg = WifiList()
 
-        #         msg.raw_string = serialRead
+        epoch_time_nsec = time.time_ns()
+        seconds = int(floor(epoch_time_nsec / 1_000_000_000))
+        nsecs   = int(epoch_time_nsec % 1_000_000_000)
 
-        #         self.publisher.publish(msg)
-        #         self.get_logger().info(f"Publishing: {msg}")
+        msg.header.stamp.sec = seconds
+        msg.header.stamp.nanosec = nsecs
+        msg.header.frame_id = "wifi_frame"
 
+        msg.networks = len(measurements)
+        msg.measurements = measurements
 
-
-
-
-
+        # Publish constructed WiFiList message
+        self._publisher.publish(msg)
 
 
 def main(args=None):
