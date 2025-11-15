@@ -13,13 +13,17 @@ class Network_Info():
     Class for storing info on a network's RSSI values as they are measured multiple times
     """
 
-    def __init__(self):
+    def __init__(self, initial_measurement):
         measurements = 0
         total = -1
         rssis = Queue(maxsize=5)
         curr_rssi = -1
         variance = -1
         active = False
+
+        for i in range(5):
+            rssis.put(-1)
+        update_info(initial_measurement)
 
     def _calc_variance(self):
         """
@@ -103,7 +107,7 @@ class Network_Info():
             Tuple containing whether the network is active or not, the current measured RSSI, and the measured variance
         """
 
-        return (self.active, self.curr_rssi, self.variance
+        return (self.active, self.curr_rssi, self.variance)
             
     
 class WiFi_Manager():
@@ -113,11 +117,36 @@ class WiFi_Manager():
         networks = 0
 
     def scan_for_networks(self):
-        pass
+        formatted_cmd = "/usr/bin/nmcli dev wifi list --rescan yes".split()
+        formatted_output = subprocess.Popen(formatted_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode('utf-8').split("\n")
+        header = formatted_output[0]
+        networks = formatted_output[1:-1]
 
-    def purge_unresponsive_networks(self):
+        section_boundaries = [0]
+        for i in range(len(header)-1):
+            if header[i] == " " and header[i+1] != " ":
+                section_boundaries.append(i+1)
+        section_boundaries.append(len(header))
+    
+        scan_results = {}
+        for network in networks:
+            bssid = network[section_boundaries[1], section_boundaries[2]].rstrip()
+            rssi  = int(network[section_boundaries[6]:section_boundaries[7]].rstrip())
+            scan_results[bssid] = rssi
+            
+        for bssid in self.wifi_bssids.keys():
+            if bssid in scan_results.keys():
+                self.wifi_bssids[bssid].update_info(scan_results[bssid])
+                del scan_results[bssid]
+            else:
+                self.wifi_bssids[bssid].update_info(-1)
+                if self.wifi_bssids[bssid].is_unresponsive():
+                    del self.wifi_bssids[bssid]
+                    networks -= 1
 
-
+        for bssid in scan_reults.keys():
+            self.wifi_bssids[bssid] = Network_Info(scan_results[bssid])
+            networks += 1
 
 class WifiDriver(Node):
 
