@@ -6,6 +6,7 @@ from queue import Queue
 import serial
 import time
 import subprocess
+from math import floor
 
 
 class Network_Info():
@@ -13,16 +14,16 @@ class Network_Info():
     Class for storing info on a network's RSSI values as they are measured multiple times
     """
     def __init__(self, initial_measurement):
-        measurements = 0
-        total = -1
-        rssis = Queue(maxsize=5)
-        curr_rssi = -1
-        variance = -1
-        active = False
+        self.measurements = 0
+        self.total = -1
+        self.rssis = Queue(maxsize=5)
+        self.curr_rssi = -1
+        self.variance = -1
+        self.active = False
 
         for i in range(5):
-            rssis.put(-1)
-        update_info(initial_measurement)
+            self.rssis.put(-1)
+        self.update_info(initial_measurement)
 
     def _calc_variance(self):
         """
@@ -31,9 +32,11 @@ class Network_Info():
         if self.measurements > 0:
             if self.measurements > 1:
                 diffs = 0
-                for rssi in rssis:
+                for i in range(5):
+                    rssi = self.rssis.get()
                     if rssi != -1:
                         diffs += (rssi - (self.total / self.measurements)) ** 2
+                    self.rssis.put(rssi)
                 self.variance = diffs / self.measurements
             else:
                 self.variance = 0
@@ -57,11 +60,11 @@ class Network_Info():
         if out_val > 0 and rssi_measurement > 0:
             self.total += (rssi_measurement - out_val)
             self.active = True
-        else if out_val > 0 and rssi_measurement < 0:
+        elif out_val > 0 and rssi_measurement < 0:
             self.total -= out_val
             self.measurements -= 1
             self.active = False
-        else if out_val < 0 and rssi_measurement > 0:
+        elif out_val < 0 and rssi_measurement > 0:
             self.total += rssi_measurement
             self.measurements += 1
             self.active = True
@@ -112,8 +115,8 @@ class WiFi_Manager():
     Class responsible for scanning Wi-Fi networks and maintaining info on these networks for the life of the node
     """
     def __init__(self):
-        wifi_bssids = {}
-        networks = 0
+        self.wifi_bssids = {}
+        self.networks = 0
 
     def scan_for_networks(self):
         """
@@ -123,7 +126,7 @@ class WiFi_Manager():
         formatted_cmd = "/usr/bin/nmcli dev wifi list --rescan yes".split()
         formatted_output = subprocess.Popen(formatted_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode('utf-8').split("\n")
         header = formatted_output[0]
-        networks = formatted_output[1:-1]
+        network_list = formatted_output[1:-1]
 
         # Since Wi-Fi network names are unpredictable, use the spacing of the header
         # message returned from the scan to identify boundaries where substrings can
@@ -136,8 +139,8 @@ class WiFi_Manager():
     
         # Extract the bssids and rssi values from the scan results
         scan_results = {}
-        for network in networks:
-            bssid = network[section_boundaries[1], section_boundaries[2]].rstrip()
+        for network in network_list:
+            bssid = network[section_boundaries[1]:section_boundaries[2]].rstrip()
             rssi  = int(network[section_boundaries[6]:section_boundaries[7]].rstrip())
             scan_results[bssid] = rssi
         
@@ -145,6 +148,7 @@ class WiFi_Manager():
         # the latest scan, update their value and remove them from the scan.
         # If not, update with a no-response. If 5 no-responses, remove them
         # from the internal list
+        unresponsive_networks = []
         for bssid in self.wifi_bssids.keys():
             if bssid in scan_results.keys():
                 self.wifi_bssids[bssid].update_info(scan_results[bssid])
@@ -152,14 +156,16 @@ class WiFi_Manager():
             else:
                 self.wifi_bssids[bssid].update_info(-1)
                 if self.wifi_bssids[bssid].is_unresponsive():
-                    del self.wifi_bssids[bssid]
-                    networks -= 1
+                    unresponsive_networks.append(bssid)
+        for bssid in unresponsive_networks:
+            del self.wifi_bssids[bssid]
+            self.networks -= 1
 
         # Go through all the Wi-Fi networks we have never seen before and
         # add them to the internal list
-        for bssid in scan_reults.keys():
+        for bssid in scan_results.keys():
             self.wifi_bssids[bssid] = Network_Info(scan_results[bssid])
-            networks += 1
+            self.networks += 1
 
     def get_active_networks(self):
         """
@@ -213,7 +219,7 @@ class WifiDriver(Node):
         # Create list of WiFiMeasurement sub-messages
         measurements = []
         for response in responses:
-            measurements.append(WifiMeasurement(bssid=response[0],rssi=response[1],variance=response[2]))
+            measurements.append(WifiMeasurement(bssid=str(response[0]),rssi=int(response[1]),variance=float(response[2])))
 
         # Create overall WifiList message
         msg = WifiList()
