@@ -2,10 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>wifi_driver</name>
-  <version>0.0.0</version>
-  <description>Todo</description>
-  <maintainer email="todo">todo</maintainer>
-  <license>TODO: License declaration</license>
+  <version>1.0.0</version>
+  <description>Node that publishes broadcasting Wi-Fi networks BSSIDs and RSSI values as well as measured varaiance to the /wifi topic</description>
+  <maintainer email="albertson.j@northeastern.edu">Jack Albertson</maintainer>
+  <license>Apache 2.0</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
