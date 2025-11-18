@@ -2,9 +2,9 @@ rosbag2_bagfile_information:
   version: 9
   storage_identifier: mcap
   duration:
-    nanoseconds: 64236452457
+    nanoseconds: 64411268686
   starting_time:
-    nanoseconds_since_epoch: 1763418528511897534
+    nanoseconds_since_epoch: 1763425658040978557
   message_count: 9
   topics_with_message_count:
     - topic_metadata:
@@ -32,13 +32,13 @@ rosbag2_bagfile_information:
   compression_format: ""
   compression_mode: ""
   relative_file_paths:
-    - 4_4_0_11-17_0.mcap
+    - 1_1_Classroom_11-17_0.mcap
   files:
-    - path: 4_4_0_11-17_0.mcap
+    - path: 1_1_Classroom_11-17_0.mcap
       starting_time:
-        nanoseconds_since_epoch: 1763418528511897534
+        nanoseconds_since_epoch: 1763425658040978557
       duration:
-        nanoseconds: 64236452457
+        nanoseconds: 64411268686
       message_count: 9
   custom_data: ~
   ros_distro: jazzy

@@ -2,10 +2,10 @@ rosbag2_bagfile_information:
   version: 9
   storage_identifier: mcap
   duration:
-    nanoseconds: 64236452457
+    nanoseconds: 56303666523
   starting_time:
-    nanoseconds_since_epoch: 1763418528511897534
-  message_count: 9
+    nanoseconds_since_epoch: 1763425769985322560
+  message_count: 8
   topics_with_message_count:
     - topic_metadata:
         name: /wifi
@@ -28,17 +28,17 @@ rosbag2_bagfile_information:
               nsec: 854775807
             avoid_ros_namespace_conventions: false
         type_description_hash: RIHS01_26ea429ab846520ec23418771e9aac31eff9359865b8898484c3c1a26ec89a34
-      message_count: 9
+      message_count: 8
   compression_format: ""
   compression_mode: ""
   relative_file_paths:
-    - 4_4_0_11-17_0.mcap
+    - 0_1_Classroom_11-17_0.mcap
   files:
-    - path: 4_4_0_11-17_0.mcap
+    - path: 0_1_Classroom_11-17_0.mcap
       starting_time:
-        nanoseconds_since_epoch: 1763418528511897534
+        nanoseconds_since_epoch: 1763425769985322560
       duration:
-        nanoseconds: 64236452457
-      message_count: 9
+        nanoseconds: 56303666523
+      message_count: 8
   custom_data: ~
   ros_distro: jazzy
