@@ -6,6 +6,7 @@ import serial
 import time
 import scipy as sp
 import random
+import numpy as np
 
 
 
@@ -59,7 +60,7 @@ class DriverSim(Node):
             measure = WifiMeasurement()
 
             measure.bssid = "11:22:33:44:55:" + f"{i:0{2}}"
-            measure.rssi = random.gauss(1,0.5)
+            measure.rssi = int(np.clip(round(255*random.gauss(1,0.5)), 0, 255))
             measure.variance = 0.5
             
 
@@ -73,7 +74,7 @@ class DriverSim(Node):
             measure = WifiMeasurement()
 
             measure.bssid = "00:00:00:00:00"
-            measure.rssi = 1.0
+            measure.rssi = 1
             measure.variance = 10.0
 
             msg.measurements.append(measure)
