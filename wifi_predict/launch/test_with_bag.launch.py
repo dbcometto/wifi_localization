@@ -4,12 +4,16 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
+
 def generate_launch_description():
     pkg_share = get_package_share_directory('wifi_predict')
     build_script = os.path.join(pkg_share, 'scripts', 'build_fingerprint_db.py')
 
-    workspace_root = os.getcwd()
-    bag_path_root = os.path.join(workspace_root, "bags")  # root folder containing all position folders
+    workspace_root = os.path.abspath(os.path.join(pkg_share, "..", "..", "..", ".."))  # go to workspace root
+    bag_path_root = os.path.join(workspace_root, "bags")
+
+    print("Bags path:", bag_path_root)
+
 
     return LaunchDescription([
         # 1️⃣ Build fingerprint DB (pass external bags folder)
@@ -34,7 +38,7 @@ def generate_launch_description():
         TimerAction(
             period=2.0,
             actions=[ExecuteProcess(
-                cmd=["ros2", "bag", "play", os.path.join(bag_path_root, "0_0_0_11-17", "0_0_0_11-17_0.mcap"), "--clock"],
+                cmd=["ros2", "bag", "play", os.path.join(bag_path_root, "4_0_0_11-17", "4_0_0_11-17_0.mcap"), "--clock"],
                 output="screen"
             )]
         ),

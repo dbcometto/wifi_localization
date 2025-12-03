@@ -3,6 +3,7 @@
 import os
 import numpy as np
 import yaml
+import sys
 from ament_index_python.packages import get_package_share_directory
 from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions
 from rclpy.serialization import deserialize_message
@@ -67,12 +68,21 @@ def vectorize_wifi(msg, bssids):
 # Main function
 # ----------------------------
 def main():
-    # Determine workspace root relative to this script
-    script_dir = os.path.dirname(os.path.realpath(__file__))  # .../wifi_predict/scripts
-    workspace_root = os.path.abspath(os.path.join(script_dir, "..", ".."))  # go up 2 levels
+    if len(sys.argv) < 2:
+        print("Usage: build_fingerprint_db.py <bags_root>")
+        return
 
-    # Bags folder in workspace
-    bags_root = os.path.join(workspace_root, "bags")  # wifi_localization/bags
+    bags_root = sys.argv[1]
+    print(f"[INFO] Using bags directory: {bags_root}")
+
+
+# def main():
+#     # Determine workspace root relative to this script
+#     script_dir = os.path.dirname(os.path.realpath(__file__))  # .../wifi_predict/scripts
+#     workspace_root = os.path.abspath(os.path.join(script_dir, "..", ".."))  # go up 2 levels
+
+#     # Bags folder in workspace
+#     bags_root = os.path.join(workspace_root, "bags")  # wifi_localization/bags
 
     # Output folder in the package share directory (where predictor expects it)
     from ament_index_python.packages import get_package_share_directory

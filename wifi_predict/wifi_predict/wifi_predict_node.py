@@ -75,7 +75,8 @@ class WifiPredictor(Node):
         # Publish prediction
         if self.is_2D:
             out = Point()
-            out.x, out.y = predicted_pos
+            out.x = float(predicted_pos[0])
+            out.y = float(predicted_pos[1])
             out.z = 0.0
         else:
             out = Int32()
