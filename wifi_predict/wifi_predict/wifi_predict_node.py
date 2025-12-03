@@ -1,101 +1,83 @@
+#!/home/anandasangli/wifi-localization-venv/bin/python3
+
+import os
+import yaml
 import rclpy
 from rclpy.node import Node
+from wifi_interface.msg import WifiList
+from geometry_msgs.msg import Point
+import numpy as np
+import joblib
+from ament_index_python.packages import get_package_share_directory
 
-# from vn_interface.msg import Vectornav
-import serial
-import time
-import scipy as sp
+OUTPUT_DIR_NAME = "runtime_1D_fingerprint_data"
 
 
-
-
-class WifiPredictor(Node):
-
+class WifiPredictorNode(Node):
     def __init__(self):
-        super().__init__('minimal_publisher')
+        super().__init__('wifi_predict_node')
 
-        # self.get_logger().info("Starting up!")
+        # Get package share directory for model
+        pkg_share = get_package_share_directory('wifi_predict')
+        model_dir = os.path.join(pkg_share, OUTPUT_DIR_NAME)
 
-        # pub_topic = (
-        #     self.declare_parameter("pub_topic","/imu")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        # Load trained GPR model
+        model_path = os.path.join(model_dir, "gpr_model.pkl")
+        if not os.path.exists(model_path):
+            self.get_logger().error(f"Model file not found: {model_path}")
+            raise FileNotFoundError(f"{model_path} does not exist")
+        self.model = joblib.load(model_path)
+        self.get_logger().info("Loaded GPR model")
 
-        # port = (
-        #     self.declare_parameter("port","/dev/pts/8")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        # Load BSSIDs
+        bssid_path = os.path.join(model_dir, "fingerprint_bssids.yaml")
+        with open(bssid_path, "r") as f:
+            self.all_bssids = yaml.safe_load(f)["bssids"]
+        self.get_logger().info(f"Loaded {len(self.all_bssids)} BSSIDs")
 
-        # # Open serial port
-        # self.connected = False
-        # while not self.connected:
-        #     try:
-        #         # self.get_logger().info("Trying to connect to port")
-        #         self.serial = serial.Serial(port, 115200, timeout=0.1)
-        #         self.connected = True
-        #         self.get_logger().info("Connected to port")
-        #     except Exception as e:
-        #         self.get_logger().info("Failed to open port... trying again in 2 sec")
-        #         time.sleep(2)
+        # ROS publisher for predicted positions
+        self.pred_pub = self.create_publisher(Point, '/wifi_predicted_position', 10)
 
+        # ROS subscriber for WiFi scans
+        self.sub = self.create_subscription(WifiList, '/wifi', self.wifi_callback, 10)
+        self.get_logger().info("Subscribed to /wifi topic")
 
-        # # Set IMU settings
-        # self.serial.write(b"$VNWRG,06,14*59\n")
-        # self.serial.write(b"$VNWRG,07,40*59\n")
+    def wifi_to_vector(self, msg):
+        """Convert WifiList message to feature vector matching trained model"""
+        rss_map = {m.bssid: m.rssi for m in msg.measurements}
+        vec = [rss_map.get(b, -100) for b in self.all_bssids]
+        return np.array(vec).reshape(1, -1)
 
-        # # Establish timer/publisher
-        # timer_period = 0.01  # seconds
-        # self.timer = self.create_timer(timer_period, self.timer_callback)
+    def wifi_callback(self, msg):
+        """Predict position from incoming WiFi scan and publish"""
+        if not msg.measurements:
+            self.get_logger().warn("Received empty WifiList message")
+            return
 
-        # self.publisher = self.create_publisher(Vectornav, pub_topic, 10)
-
-        # self.get_logger().info("Set up and working!")
-
-
-
-
-
-    def timer_callback(self):
-        pass
-
-        # self.get_logger().info("Timer CB")
-        # while self.serial.in_waiting > 0:
-        #     serialRead = self.serial.readline().decode('utf-8')
-        #     # self.get_logger().info(f"Reading: {serialRead}")
-
-        #     data = self.processString(serialRead)
-        #     # self.get_logger().info(f"Data: {data}")
-
-        #     if data:
-        #         msg = self.make_message(data)
-
-        #         msg.raw_string = serialRead
-
-        #         self.publisher.publish(msg)
-        #         self.get_logger().info(f"Publishing: {msg}")
-
-
-
-
-
-
+        X = self.wifi_to_vector(msg)
+        try:
+            pred = self.model.predict(X)
+            point_msg = Point()
+            point_msg.x = float(pred[0, 0])
+            point_msg.y = float(pred[0, 1]) if pred.shape[1] > 1 else 0.0
+            point_msg.z = 0.0
+            self.pred_pub.publish(point_msg)
+            self.get_logger().info(f"Predicted position: {point_msg}")
+        except Exception as e:
+            self.get_logger().error(f"Prediction failed: {e}")
 
 
 def main(args=None):
     rclpy.init(args=args)
-
-    minimal_publisher = WifiPredictor()
-
+    node = WifiPredictorNode()
     try:
-        rclpy.spin(minimal_publisher)
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        print("Shutting down!")
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
-    minimal_publisher.destroy_node()
-    rclpy.shutdown()
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
