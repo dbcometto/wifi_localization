@@ -1,101 +1,102 @@
+#!/usr/bin/env python3
+
+import os
 import rclpy
 from rclpy.node import Node
+import numpy as np
+import yaml
+from scipy.spatial.distance import cdist
 
-# from vn_interface.msg import Vectornav
-import serial
-import time
-import scipy as sp
+from std_msgs.msg import Int32
+from geometry_msgs.msg import Point
+from wifi_interface.msg import WifiList
+from ament_index_python.packages import get_package_share_directory
 
-
-
+OUTPUT_DIR_NAME = "runtime_1D_fingerprint_data"  # must match build_fingerprint_db.py
 
 class WifiPredictor(Node):
 
     def __init__(self):
-        super().__init__('minimal_publisher')
+        super().__init__('wifi_predict_node')
 
-        # self.get_logger().info("Starting up!")
+        # ----------------------------
+        # Load fingerprint DB
+        # ----------------------------
+        pkg_share = get_package_share_directory('wifi_predict')
+        data_dir = os.path.join(pkg_share, OUTPUT_DIR_NAME)
 
-        # pub_topic = (
-        #     self.declare_parameter("pub_topic","/imu")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        self.X = np.load(os.path.join(data_dir, 'fingerprint_X.npy'))
+        self.y = np.load(os.path.join(data_dir, 'fingerprint_y.npy'))
+        with open(os.path.join(data_dir, 'fingerprint_bssids.yaml'), "r") as f:
+            self.bssids = yaml.safe_load(f)["bssids"]
 
-        # port = (
-        #     self.declare_parameter("port","/dev/pts/8")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        # Ensure y is numeric
+        if self.y.dtype == object:
+            self.y = np.vstack([np.array(v, dtype=int) for v in self.y])
 
-        # # Open serial port
-        # self.connected = False
-        # while not self.connected:
-        #     try:
-        #         # self.get_logger().info("Trying to connect to port")
-        #         self.serial = serial.Serial(port, 115200, timeout=0.1)
-        #         self.connected = True
-        #         self.get_logger().info("Connected to port")
-        #     except Exception as e:
-        #         self.get_logger().info("Failed to open port... trying again in 2 sec")
-        #         time.sleep(2)
+        # Detect 1D vs 2D
+        self.is_2D = self.y.shape[1] == 2 if len(self.y.shape) > 1 else False
 
+        self.get_logger().info(f"Loaded fingerprint DB with {len(self.X)} samples and {len(self.bssids)} BSSIDs.")
+        self.get_logger().info(f"Mode: {'2D' if self.is_2D else '1D'}")
 
-        # # Set IMU settings
-        # self.serial.write(b"$VNWRG,06,14*59\n")
-        # self.serial.write(b"$VNWRG,07,40*59\n")
+        # ----------------------------
+        # Subscriber & Publisher
+        # ----------------------------
+        self.sub = self.create_subscription(
+            WifiList,
+            "/wifi",
+            self.wifi_callback,
+            10
+        )
 
-        # # Establish timer/publisher
-        # timer_period = 0.01  # seconds
-        # self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.pub = self.create_publisher(Point if self.is_2D else Int32, "/wifi_position", 10)
 
-        # self.publisher = self.create_publisher(Vectornav, pub_topic, 10)
+    # ------------------------------------------------------------
+    # Convert WifiList msg → aligned RSSI vector
+    # ------------------------------------------------------------
+    def vectorize(self, msg: WifiList):
+        rss_map = {m.bssid: m.rssi for m in msg.measurements}
+        vec = [rss_map.get(b, -100) for b in self.bssids]
+        return np.array(vec).reshape(1, -1)
 
-        # self.get_logger().info("Set up and working!")
+    # ------------------------------------------------------------
+    # Handle incoming WifiList message
+    # ------------------------------------------------------------
+    def wifi_callback(self, msg: WifiList):
+        vec = self.vectorize(msg)
 
+        # Compute distances and find nearest fingerprint
+        distances = cdist(vec, self.X, metric="euclidean")[0]
+        idx = np.argmin(distances)
+        predicted_pos = self.y[idx]
+        min_dist = float(distances[idx])
 
+        # Publish prediction
+        if self.is_2D:
+            out = Point()
+            out.x, out.y = predicted_pos
+            out.z = 0.0
+        else:
+            out = Int32()
+            out.data = int(predicted_pos)
 
+        self.pub.publish(out)
+        self.get_logger().info(f"[WiFi Position] Predicted = {predicted_pos}, distance={min_dist:.2f}")
 
-
-    def timer_callback(self):
-        pass
-
-        # self.get_logger().info("Timer CB")
-        # while self.serial.in_waiting > 0:
-        #     serialRead = self.serial.readline().decode('utf-8')
-        #     # self.get_logger().info(f"Reading: {serialRead}")
-
-        #     data = self.processString(serialRead)
-        #     # self.get_logger().info(f"Data: {data}")
-
-        #     if data:
-        #         msg = self.make_message(data)
-
-        #         msg.raw_string = serialRead
-
-        #         self.publisher.publish(msg)
-        #         self.get_logger().info(f"Publishing: {msg}")
-
-
-
-
-
-
-
-
+# ------------------------------------------------------------
+# Main
+# ------------------------------------------------------------
 def main(args=None):
     rclpy.init(args=args)
-
-    minimal_publisher = WifiPredictor()
-
+    node = WifiPredictor()
     try:
-        rclpy.spin(minimal_publisher)
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        print("Shutting down!")
-
-    minimal_publisher.destroy_node()
-    rclpy.shutdown()
-
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
