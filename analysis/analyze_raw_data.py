@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import allantools as at
 
-def grab_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17', storage_id='mcap', msg_type = WifiList):
+def grab_raw_wifi_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17', storage_id='mcap', msg_type = WifiList):
     all_data = []
 
     reader = rosbag2_py.SequentialReader()
@@ -22,7 +22,6 @@ def grab_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bag
     while reader.has_next():
         msg = reader.read_next()
 
-        # TODO: grab correct topics
         if msg[0] == '/wifi':
             data = deserialize_message(msg[1],msg_type)
             all_data.append(data)
@@ -31,20 +30,8 @@ def grab_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bag
 
 
 
-
-
-#==========================# Function #==========================#
-def analyze_data(data_path  = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17',
-                 fig_title  = "Default Dataset 0-0-0",
-                 start_time = 0,
-                 stop_time  = 100):
-    
-    print(f"\n\n\n#=====# For: {fig_title} #=====#\n")
-
-
-    # Grab data
-    # Data was recorded in FLU, change to FRD
-    my_data = grab_data(data_path)
+def collect_data(data_path='/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17',start_time = 0, stop_time =100):
+    my_data = grab_raw_wifi_data(data_path)
 
     time = np.array([x.header.stamp.sec + x.header.stamp.nanosec*1e-9 for x in my_data])
     elapsed_time = time - min(time)
@@ -52,11 +39,69 @@ def analyze_data(data_path  = '/home/dbcometto/workspace/wifi_ws/src/wifi_locali
     indices = np.where((start_time <= elapsed_time) & (elapsed_time <= stop_time))[0]
     elapsed_time = elapsed_time[indices]
 
-    # TODO: dict by bssid
-    # wifi_data = {}
-    # for x in my_data:
-    #     bssid,
-    #     wifi_data = np.array([x.measurements for x in my_data])[indices]
+
+    wifi_data = []
+    for x in my_data:
+        wifi_data.append({mx_list.bssid: (mx_list.rssi,mx_list.variance) for mx_list in x.measurements})
+
+    
+
+    # Data collection points
+    steps = len(wifi_data)
+
+
+    # Count and Collect BSSIDs
+
+    unique_bssids = set()
+    for x in wifi_data:
+        unique_bssids.update(key for key in x.keys())
+
+    unique_bssid_list = sorted(unique_bssids)
+    unique_bssid_count = len(unique_bssid_list)
+    
+    
+    # Organize into numpy array
+    rssis = np.full((unique_bssid_count,steps),np.nan)
+
+    for i in range(unique_bssid_count):
+        for step in range(steps):
+            try:
+                rssis[i,step] = float(wifi_data[step][unique_bssid_list[i]][0])
+            except:
+                continue
+
+    return elapsed_time,wifi_data,unique_bssid_list,unique_bssid_count,rssis
+
+    
+
+
+
+
+
+#==========================# Function #==========================#
+def analyze_data(location_0 = '0_0_0',
+                 location_1 = '7_0_0',
+                 date = "11-17",
+                 folder_path = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags',
+                 fig_title  = "Default Dataset 0_0_0",
+                 start_time = 0,
+                 stop_time  = 100):
+    
+    print(f"\n\n\n#=====# For: {fig_title} #=====#\n")
+
+    data_path_0  = f"{folder_path}/{location_0}_{date}"
+    data_path_1  = f"{folder_path}/{location_1}_{date}"
+    
+
+    elapsed_time_0,wifi_data_0,unique_bssid_list_0,unique_bssid_count_0,rssis_0 = collect_data(data_path=data_path_0, start_time=start_time, stop_time=stop_time)
+
+
+    # print(f"Data 0: {wifi_data_0[0]}")
+    # print(f"# of Unique BSSIDs: {unique_bssid_count_0}")
+    # print(f"rssis: {rssis_0}")
+
+
+    elapsed_time_1,wifi_data_1,unique_bssid_list_1,unique_bssid_count_1,rssis_1 = collect_data(data_path=data_path_1, start_time=start_time, stop_time=stop_time)
 
 
 
@@ -64,21 +109,30 @@ def analyze_data(data_path  = '/home/dbcometto/workspace/wifi_ws/src/wifi_locali
 
 
 
+    #=====================# Raw Comparison Plot #=====================#
+
+
+    bssid_to_index_1 = {bssid: i for i, bssid in enumerate(unique_bssid_list_1)}
+
+    # Build a mapping from index in 0 -> index in 1
+    index_mapping = {}
+    for i, bssid in enumerate(unique_bssid_list_0):
+        if bssid in bssid_to_index_1:
+            index_mapping[i] = bssid_to_index_1[bssid]
+
+
+    # print(f"index_mapping: {index_mapping}")
+
+    num_bssis = min(10,len(index_mapping))
+
+    indices_0,indices_1 = zip(*index_mapping.items())
+
+    # print(f"0 indices: {indices_0}")
+    # print(f"1 indices: {indices_1}")
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-    #=====================# Plotting #=====================#
 
     fig, axs = plt.subplots(figsize=(20,10),nrows=2,ncols=2,layout="constrained")
     # plt.subplots_adjust(bottom=0.5, right=0, top=0)
@@ -89,58 +143,33 @@ def analyze_data(data_path  = '/home/dbcometto/workspace/wifi_ws/src/wifi_locali
     extra_color1 = "#2ECCA3"
     extra_color2 = "#4E2745"
 
-
     r = 0
     c = 0
-    # axs[r,c].scatter(mag_x*scale,mag_y*scale,color=x_color,label="Uncalibrated Data (Scaled)",zorder=1)
-    # # axs[r,c].scatter(cal_mag_x_unfixed,cal_mag_y_unfixed,c=elapsed_time,cmap="plasma",label="Calibrated Data Unfixed",zorder=2)
-    # # axs[r,c].contour(X, Y, Z, levels=[0], cmap='viridis')
-    # sc = axs[r,c].scatter(cal_mag_x,cal_mag_y,c=elapsed_time,label="Calibrated Data",zorder=3)
-    axs[r,c].set_title("Magnetic Field")
-    axs[r,c].set_xlabel("X")
-    axs[r,c].set_ylabel("Y")
-    axs[r,c].legend(loc="upper left")
-    axs[r,c].grid(True,alpha=0.7,zorder=0)
-    axs[r,c].set_axisbelow(True)
-    # axs[r,c].set_aspect('equal')
-    # axs[r,c].set_xlim(left=-7)
+    for i in range(num_bssis):
+        j = indices_0[i]
+        axs[r,c].plot(elapsed_time_0,rssis_0[j],marker="^",linestyle='-',label=f"0 - {unique_bssid_list_0[j]}",zorder=1)
 
-    # cbar = plt.colorbar(sc, ax=axs[r, c])
-    # cbar.set_label(f"Elapsed Time (s)")
+    for i in range(num_bssis):
+        j = indices_1[i]
+        axs[r,c].plot(elapsed_time_1,rssis_1[j],marker=".",linestyle='--',label=f"1 - {unique_bssid_list_1[j]}",zorder=1)
 
-
-    # Yaw Heading cal vs uncal
-    r = 1
-    c = 0
-    # axs[r,c].plot(elapsed_time,dead_roll,marker="^",linestyle='-',color=z_color,label="x",zorder=1)
-    # axs[r,c].plot(elapsed_time,dead_pitch,marker="s",linestyle='-',color=y_color,label="y",zorder=2)
-    # axs[r,c].plot(elapsed_time,np.unwrap(mag_yaw*180/np.pi,period=360),marker=".",linestyle='-',color=x_color,label="Yaw (Calibrated)",zorder=1)
-    # axs[r,c].plot(elapsed_time,np.unwrap(mag_yaw_uncal*180/np.pi,period=360),marker=".",linestyle='-',color=y_color,label="Yaw (Uncalibrated)",zorder=2)
-    # axs[r,c].plot(elapsed_time,best_yaw,marker=".",linestyle='-',color=z_color,label="z (Best)",zorder=3)
-    # axs[r,c].plot(gps_elapsed_time,gps_yaw,marker=".",linestyle='-',label="z (GPS)",zorder=4)
-    axs[r,c].set_title("Heading based on Magnetic Field")
-    axs[r,c].set_xlabel("Time (s)")
-    axs[r,c].set_ylabel("Angle (deg)")
-    axs[r,c].legend(loc="upper right")
+    axs[r,c].set_title("RSSI by BSSID Compared")
+    axs[r,c].set_xlabel("Elpased Time")
+    axs[r,c].set_ylabel("RSSI")
+    # axs[r,c].legend(loc="upper left")
     axs[r,c].grid(True,alpha=0.7,zorder=0)
     axs[r,c].set_axisbelow(True)
 
-
-
-
-
-
-
-
-
+    
 
 
 
 
 #==========================# Data #==========================#
 
-analyze_data(data_path  = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17',
-             fig_title  = "Specific Data",
+analyze_data(location_0 = '0_0_0',
+             location_1 = '7_0_0',
+             fig_title  = "0_0_0 Data vs 7_0_0 Data",
              start_time = 0,
              stop_time  = 10000)
 
