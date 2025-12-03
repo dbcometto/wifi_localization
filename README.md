@@ -9,3 +9,6 @@ Repo for EECE 5554 RSN Final Project
 | `wifi_interface` | Custom wifi localization messages          | All    |
 | `wifi_launch`    | Launch files for full system               | All    |
 | `wifi_predict`   | Predicts position from wifi data           | Ananda |    
+
+
+Note that Scikit Learn is required for the `analysis/predictor.py` script.

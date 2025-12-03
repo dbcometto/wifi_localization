@@ -75,13 +75,16 @@ class WifiLPF(Node):
         self.publisher = self.create_publisher(WifiList, output_topic, 10)
 
         self.get_logger().info("Set up and working")
+        if self.isDebugging:
+            self.get_logger().info("Debugging is enabled")
 
 
 
 
 
     def input_callback(self, msg):
-        # self.get_logger().info(f"Recv Data: {msg}")
+        if self.isDebugging:
+            self.get_logger().info(f"Recv Data: {msg}")
 
         # Read through all measurements
         new_data = {}
@@ -126,7 +129,8 @@ class WifiLPF(Node):
         out_msg = WifiList()
         out_msg.header.frame_id = "base"
         out_msg.header.stamp = timestamp
-
+        
+        out_msg.networks = 0
         for bssid, (signal,variance) in output.items():
             new_measurement = WifiMeasurement()
             new_measurement.header.frame_id = "base"
@@ -137,7 +141,9 @@ class WifiLPF(Node):
             new_measurement.variance = variance
 
             out_msg.measurements.append(new_measurement)
+            out_msg.networks += 1
 
+        out_msg.networks = len(out_msg.measurements)
 
         # Publish
         if self.isDebugging:

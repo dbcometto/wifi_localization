@@ -19,7 +19,7 @@ class DriverSim(Node):
         self.get_logger().info("Starting up")
 
         output_topic = (
-            self.declare_parameter("output_topic","/raw_wifi_data")
+            self.declare_parameter("output_topic","/wifi")
             .get_parameter_value()
             .string_value
         )
