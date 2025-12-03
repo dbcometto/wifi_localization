@@ -51,6 +51,16 @@ class WifiLPF(Node):
             .string_value
         )
 
+        isDebugging = (
+            self.declare_parameter("debug","false")
+            .get_parameter_value()
+            .string_value
+        )
+        self.isDebugging = False
+        if isDebugging == "true":
+            self.isDebugging = True
+            
+
 
         # Set up filter
         self.n = num_taps
@@ -130,7 +140,8 @@ class WifiLPF(Node):
 
 
         # Publish
-        self.get_logger().info(f"LPF Signals: {output} {self.memory}")
+        if self.isDebugging:
+            self.get_logger().info(f"LPF Signals: {output} {self.memory}")
         self.publisher.publish(out_msg)
         
 
