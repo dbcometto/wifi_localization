@@ -3,6 +3,7 @@ from rclpy.node import Node
 
 from wifi_interface.msg import WifiList, WifiMeasurement
 from scipy.signal import firwin
+import numpy as np
 
 
 
@@ -122,7 +123,7 @@ class WifiLPF(Node):
             new_measurement.header.stamp = timestamp
 
             new_measurement.bssid = bssid
-            new_measurement.rssi = signal
+            new_measurement.rssi = int(np.clip(round(signal), 0, 255))
             new_measurement.variance = variance
 
             out_msg.measurements.append(new_measurement)
