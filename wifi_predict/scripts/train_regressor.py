@@ -9,6 +9,7 @@ from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions
 from wifi_interface.msg import WifiList
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+from sklearn.linear_model import LinearRegression
 import joblib
 from ament_index_python.packages import get_package_share_directory
 from sklearn.model_selection import train_test_split
@@ -137,11 +138,21 @@ def prepare_datasets(all_wifi_msgs, labels, all_bssids):
 # ----------------------------
 # Train Gaussian Process Regressor
 # ----------------------------
-def train_regressor(X_train, y_train):
+def train_gaussian_regressor(X_train, y_train):
     kernel = RBF(length_scale=1.0) + WhiteKernel(noise_level=1)
     model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=3)
     model.fit(X_train, y_train)
     print("[INFO] Regression model trained successfully")
+    return model
+
+
+# ----------------------------
+# Train Linear Regression Model
+# ----------------------------
+def train_linear_regressor(X_train, y_train):
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    print("[INFO] Linear regression model trained successfully")
     return model
 
 
@@ -166,7 +177,7 @@ def main():
         print("[ERROR] No training data available. Exiting.")
         return
 
-    model = train_regressor(X_train, y_train)
+    model = train_linear_regressor(X_train, y_train)
 
     # ----------------------------
     # Evaluate on test set
