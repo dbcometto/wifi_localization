@@ -4,6 +4,6 @@ wifi_lpf:
     output_topic: "/filtered_wifi_data"
     num_taps: 3
     sampling_freq: 1.0
-    cutoff_freq: 0.4
+    cutoff_freq: 0.1
     window: "boxcar"
     debug: "false"
