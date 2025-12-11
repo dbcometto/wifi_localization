@@ -5,8 +5,6 @@ from wifi_interface.msg import WifiList, WifiMeasurement
 from scipy.signal import firwin
 import numpy as np
 
-from collections import deque
-
 
 
 
@@ -17,17 +15,47 @@ class WifiLPF(Node):
 
         self.get_logger().info("Starting up")
 
-        input_topic = (self.declare_parameter("input_topic","/raw_wifi_data").get_parameter_value().string_value)
-        output_topic = (self.declare_parameter("output_topic","/filtered_wifi_data").get_parameter_value().string_value)
+        input_topic = (
+            self.declare_parameter("input_topic","/raw_wifi_data")
+            .get_parameter_value()
+            .string_value
+        )
 
-        num_taps = (self.declare_parameter("num_taps",11).get_parameter_value().integer_value)
-        fs = (self.declare_parameter("sampling_freq",1.0).get_parameter_value().double_value)
-        fc = (self.declare_parameter("cutoff_freq",0.4).get_parameter_value().double_value)
-        window = (self.declare_parameter("window","boxcar").get_parameter_value().string_value)
+        output_topic = (
+            self.declare_parameter("output_topic","/filtered_wifi_data")
+            .get_parameter_value()
+            .string_value
+        )
 
-        self.timeout = (self.declare_parameter("timeout",20.0).get_parameter_value().double_value)
+        num_taps = (
+            self.declare_parameter("num_taps",11)
+            .get_parameter_value()
+            .integer_value
+        )
 
-        isDebugging = (self.declare_parameter("debug","false").get_parameter_value().string_value)
+        fs = (
+            self.declare_parameter("sampling_freq",1.0)
+            .get_parameter_value()
+            .double_value
+        )
+
+        fc = (
+            self.declare_parameter("cutoff_freq",0.4)
+            .get_parameter_value()
+            .double_value
+        )
+
+        window = (
+            self.declare_parameter("window","boxcar")
+            .get_parameter_value()
+            .string_value
+        )
+
+        isDebugging = (
+            self.declare_parameter("debug","false")
+            .get_parameter_value()
+            .string_value
+        )
         self.isDebugging = False
         if isDebugging == "true":
             self.isDebugging = True
@@ -58,44 +86,41 @@ class WifiLPF(Node):
         if self.isDebugging:
             self.get_logger().info(f"Recv Data: {msg}")
 
-        
         # Read through all measurements
         new_data = {}
         for measurement in msg.measurements:
-            current_time = self.get_clock().now().nanoseconds / 1e9
             # Init tracking of new bssid
             if measurement.bssid not in self.memory.keys():
-                self.memory[measurement.bssid] = (deque([measurement.rssi]*self.n,maxlen=self.n),
-                                                  deque([measurement.variance]*self.n,maxlen=self.n),
-                                                  deque([current_time]*self.n,maxlen=self.n))
+                self.memory[measurement.bssid] = ([0]*self.n,[0]*self.n)
 
             # store measurement data for easy use
             new_data[measurement.bssid] = (measurement.rssi, measurement.variance)
 
         
-        # Perform filter on all memory signals
+        # Perform logic on all memory signals
         output = {}
-        for bssid, (signals, variances, times) in self.memory.items():
+        for bssid, (signal, variance) in self.memory.items():
 
             if bssid in new_data.keys():
                 (new_signal, new_variance) = new_data[bssid]
-                current_time = self.get_clock().now().nanoseconds / 1e9
+                signal[self.index] = new_signal
+                variance[self.index] = new_variance 
+            else:
+                signal[self.index] =  0
+                variance[self.index] =  0
 
-                signals.append(new_signal)
-                variances.append(new_variance) 
-                times.append(current_time)
+            output[bssid] = (sum([self.taps[i] * signal[(self.index-i) % (self.n)] for i in range(0,self.n)]),
+                                 sum([self.taps[i]**2 * variance[(self.index-i) % (self.n)] for i in range(0,self.n)]))
 
 
-            output[bssid] = (np.dot(self.taps[::-1], signals),
-                             np.dot(self.taps[::-1]**2, variances))
-
+        # Update rolling index
+        self.index = (self.index + 1) % (self.n)
 
 
         # Delete noncurrent bssids
         for bssid in list(self.memory.keys()):
-            (signals, variances, times) = self.memory[bssid]
-            current_time = self.get_clock().now().nanoseconds / 1e9
-            if current_time-times[0] > self.timeout:
+            (signal, variance) = self.memory[bssid]
+            if all([x==0 for x in signal]) and all([x==0 for x in variance]):
                     del self.memory[bssid]
 
 

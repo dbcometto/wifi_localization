@@ -44,10 +44,14 @@ class DriverSim(Node):
         # measure.rssi = random.gauss(1,0.5)
         # measure.variance = 0.5
         # msg.measurements.append(measure)
+        timestamp = self.get_clock().now().to_msg()
+
+        msg.header.frame_id = "base"
+        msg.header.stamp = timestamp
 
         variance = 0.5
-        x = 0
-        y = 0
+        x = 1
+        y = 1
         z = 0
 
         msg.pose.pose.position.x = random.gauss(x,variance)

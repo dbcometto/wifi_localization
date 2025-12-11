@@ -133,6 +133,17 @@ def analyze_data(location_0 = '0_0_0',
 
 
 
+    #=====================# FFT #=====================#
+    fs = 0.2
+    k = len(rssis_0)
+    df = fs/k
+    freqs_0 = df*np.arange(k)
+    fft_0 = np.abs(np.fft.fft(rssis_0))
+    fft_db_0 = 20*np.log10(fft_0/np.max(fft_0,axis=1)[:,None])
+
+
+
+
 
     fig, axs = plt.subplots(figsize=(20,10),nrows=2,ncols=2,layout="constrained")
     # plt.subplots_adjust(bottom=0.5, right=0, top=0)
@@ -143,6 +154,10 @@ def analyze_data(location_0 = '0_0_0',
     extra_color1 = "#2ECCA3"
     extra_color2 = "#4E2745"
 
+
+
+
+    # Raw Comparison
     r = 0
     c = 0
     for i in range(num_bssis):
@@ -160,7 +175,30 @@ def analyze_data(location_0 = '0_0_0',
     axs[r,c].grid(True,alpha=0.7,zorder=0)
     axs[r,c].set_axisbelow(True)
 
+
+
+
+    # FFT of 0
+    r = 0
+    c = 1
+    axs[r,c].plot(freqs_0,fft_db_0,marker=".",linestyle='--',label="RSSIs 0",zorder=1)
+
+    axs[r,c].set_title("FFT of RSSIS for 0")
+    axs[r,c].set_xlabel("Frequency (Hz)")
+    axs[r,c].set_ylabel("dB")
+    # axs[r,c].legend(loc="upper left")
+    axs[r,c].grid(True,alpha=0.7,zorder=0)
+    axs[r,c].set_axisbelow(True)
+
     
+
+
+
+
+
+    
+
+
 
 
 
