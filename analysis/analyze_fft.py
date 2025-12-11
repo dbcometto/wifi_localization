@@ -9,6 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as signal
 
+from collections import deque
+
 def grab_raw_wifi_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17', storage_id='mcap', msg_type = WifiList):
     all_data = []
 
@@ -117,7 +119,7 @@ def analyze_data(location = '0_0',
 
 
     # FFT
-    fs = 1
+    fs = 0.2
     k = np.shape(rssis)[1]
     # print(f"k: {k}")
     df = fs/k
@@ -131,13 +133,23 @@ def analyze_data(location = '0_0',
     # Filtering
 
     num_taps = 3
-    fc = 0.1
+    fc = 0.01
     window = "boxcar"
     taps = signal.firwin(num_taps, fc, window=window, pass_zero=True, fs=fs)
     denominator=1
 
-    rssis_filt = signal.lfilter(taps,denominator,rssis)
+    # rssis_filt = signal.lfilter(taps,denominator,rssis)
+    rssis_filt = np.zeros_like(rssis)
 
+
+    rssi_ques = [deque(maxlen=num_taps)]*num_rssis
+
+    for h in range(np.shape(rssis)[0]):
+        for j in range(np.shape(rssis)[1]):
+            if not rssis[h,j] < 0.1:
+                rssi_ques[h].append(rssis[h,j])
+
+                rssis_filt[h,j] = sum(tap*rssi for tap,rssi in zip(taps,rssi_ques[h]))
 
 
     # FFT filtered

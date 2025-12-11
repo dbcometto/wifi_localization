@@ -134,7 +134,7 @@ def analyze_data(location_0 = '0_0_0',
 
 
     #=====================# FFT #=====================#
-    fs = 1
+    fs = 0.2
     k = len(rssis_0)
     df = fs/k
     freqs_0 = df*np.arange(k)

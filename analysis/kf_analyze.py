@@ -114,12 +114,12 @@ def analyze_data(folder_path = '/home/dbcometto/workspace/wifi_ws/src/wifi_local
     # Raw
     r = 0
     c = 0
-    axs[r,c].plot(estimate_elapsed_time,estimate_x,marker=".",linestyle='-',label="Estimate",zorder=1)
-    axs[r,c].plot(output_elapsed_time,output_x,marker=".",linestyle='-',label="Output",zorder=1)
+    axs[r,c].plot(estimate_elapsed_time,estimate_x,marker=".",linestyle='-',label="New Prediction",zorder=1)
+    axs[r,c].plot(output_elapsed_time,output_x,marker=".",linestyle='-',label="Estimate",zorder=1)
     axs[r,c].set_title("X Position over Time")
     axs[r,c].set_xlabel("Time (s)")
     axs[r,c].set_ylabel("Position (grid)")
-    # axs[r,c].legend(loc="upper left")
+    axs[r,c].legend(loc="upper right")
     axs[r,c].grid(True,alpha=0.7,zorder=0)
     axs[r,c].set_axisbelow(True)
 

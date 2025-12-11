@@ -60,7 +60,7 @@ class DriverSim(Node):
             measure = WifiMeasurement()
 
             measure.bssid = "11:22:33:44:55:" + f"{i:0{2}}"
-            measure.rssi = int(np.clip(round(255*random.gauss(1,0.5)), 0, 255))
+            measure.rssi = int(np.clip(round(100*random.gauss(1,0.5)), 0, 100))
             measure.variance = 0.5
             
 
