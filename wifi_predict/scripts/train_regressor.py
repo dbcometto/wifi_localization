@@ -7,19 +7,20 @@ import numpy as np
 from rclpy.serialization import deserialize_message
 from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions
 from wifi_interface.msg import WifiList
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, WhiteKernel
-from sklearn.linear_model import LinearRegression
+from wifi_predict.gpr_utils import ProgressGPR, MultiGPR
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.model_selection import GroupKFold
+from sklearn.metrics import mean_squared_error
+from sklearn.pipeline import Pipeline
 import joblib
 from ament_index_python.packages import get_package_share_directory
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from tqdm import tqdm
 
 OUTPUT_DIR_NAME = "runtime_1D_fingerprint_data"
 
-
-# ----------------------------
-# Parse numeric label from folder name
 # ----------------------------
 def parse_label(folder_name):
     parts = folder_name.split("_")
@@ -31,23 +32,14 @@ def parse_label(folder_name):
             break
     return label if label else None
 
-
-# ----------------------------
-# Read WiFi messages from a bag
 # ----------------------------
 def read_wifi_from_bag(bag_folder_path):
     wifi_msgs = []
     mcap_files = [f for f in os.listdir(bag_folder_path) if f.endswith(".mcap")]
-    if not mcap_files:
-        print(f"[WARN] No .mcap files found in {bag_folder_path}")
-        return []
-
     for f in mcap_files:
         bag_file = os.path.join(bag_folder_path, f)
         if os.path.getsize(bag_file) < 1024:
-            print(f"[WARN] Skipping tiny file {bag_file}")
             continue
-
         storage_options = StorageOptions(uri=bag_file, storage_id="mcap")
         converter_options = ConverterOptions("", "")
         reader = SequentialReader()
@@ -56,108 +48,65 @@ def read_wifi_from_bag(bag_folder_path):
         except RuntimeError as e:
             print(f"[WARN] Cannot open {bag_file}: {e}")
             continue
-
-        count = 0
         while reader.has_next():
-            topic, data, t = reader.read_next()
+            topic, data, _ = reader.read_next()
             if topic != "/wifi":
                 continue
             msg = deserialize_message(data, WifiList)
             wifi_msgs.append(msg)
-            count += 1
-        print(f"[INFO] Read {count} messages from {bag_file}")
-
     return wifi_msgs
 
-
-# ----------------------------
-# Vectorize WiFi message
-# ----------------------------
-def vectorize_wifi(msg, bssids):
-    rss_map = {m.bssid: m.rssi for m in msg.measurements}
-    vec = [rss_map.get(b, -100) for b in bssids]
-    return np.array(vec)
-
-
-# ----------------------------
-# Load WiFi data from bags
 # ----------------------------
 def load_wifi_data(bags_root):
-    all_wifi_msgs = []
-    labels = []
-
+    all_wifi_msgs, labels, groups = [], [], []
+    bag_idx = 0
     for pos_folder in sorted(os.listdir(bags_root)):
         pos_path = os.path.join(bags_root, pos_folder)
         if not os.path.isdir(pos_path):
             continue
-
         label = parse_label(pos_folder)
         if not label:
-            print(f"[WARN] Skipping folder '{pos_folder}', no numeric label found")
             continue
-
         msgs = read_wifi_from_bag(pos_path)
         if not msgs:
             continue
-
         all_wifi_msgs.extend(msgs)
         labels.extend([label] * len(msgs))
-        print(f"[INFO] Read {len(msgs)} messages from folder '{pos_folder}' with label {label}")
-
-    # Discover all unique BSSIDs
+        groups.extend([bag_idx] * len(msgs))
+        bag_idx += 1
     all_bssids = sorted({m.bssid for msg in all_wifi_msgs for m in msg.measurements})
-    print(f"[INFO] Found {len(all_bssids)} unique BSSIDs")
-
-    return all_wifi_msgs, labels, all_bssids
-
+    return all_wifi_msgs, labels, all_bssids, groups
 
 # ----------------------------
-# Prepare training/testing datasets
-# ----------------------------
-def prepare_datasets(all_wifi_msgs, labels, all_bssids):
-    X = []
-
-    for msg in all_wifi_msgs:
-        feature_vector = []
+def prepare_dataset(all_wifi_msgs, labels, all_bssids, groups):
+    X, group_ids = [], []
+    for msg, grp in zip(all_wifi_msgs, groups):
         bssid_to_rssi = {m.bssid: m.rssi for m in msg.measurements}
-        for bssid in all_bssids:
-            feature_vector.append(bssid_to_rssi.get(bssid, -100))
-        X.append(feature_vector)
-
+        X.append([bssid_to_rssi.get(b, np.nan) for b in all_bssids])
+        group_ids.append(grp)
     X = np.array(X)
-    y = np.array([lbl + [0]*(3 - len(lbl)) for lbl in labels])
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    print(f"[INFO] Train samples: {X_train.shape}, Test samples: {X_test.shape}")
-    return X_train, y_train, X_test, y_test
-
+    y = np.array([lbl[:2] for lbl in labels])  # only x, y
+    group_ids = np.array(group_ids)
+    return X, y, group_ids
 
 # ----------------------------
-# Train Gaussian Process Regressor
-# ----------------------------
+def train_single_gp(X_train, y_train):
+    from sklearn.gaussian_process.kernels import Matern, RationalQuadratic, ConstantKernel, WhiteKernel
+    n_features = X_train.shape[1]
+    matern = Matern(length_scale=np.ones(n_features), nu=1.5, length_scale_bounds=(0.1, 20.0))
+    rq = RationalQuadratic(length_scale=1.0, alpha=1.0, length_scale_bounds=(0.1, 20.0))
+    kernel = ConstantKernel(1.0, (0.01, 100)) * (matern + rq) + WhiteKernel(noise_level=0.2, noise_level_bounds=(0.01, 5.0))
+    gp = ProgressGPR(kernel=kernel, n_restarts_optimizer=5, alpha=1e-5, normalize_y=True)
+    gp.fit(X_train, y_train)
+    return gp
+
 def train_gaussian_regressor(X_train, y_train):
-    kernel = RBF(length_scale=1.0) + WhiteKernel(noise_level=1)
-    model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=3)
-    model.fit(X_train, y_train)
-    print("[INFO] Regression model trained successfully")
-    return model
+    gps = []
+    for i in range(2):
+        gp = train_single_gp(X_train, y_train[:, i])
+        gps.append(gp)
+    return gps
 
-
-# ----------------------------
-# Train Linear Regression Model
-# ----------------------------
-def train_linear_regressor(X_train, y_train):
-    model = LinearRegression()
-    model.fit(X_train, y_train)
-    print("[INFO] Linear regression model trained successfully")
-    return model
-
-
-# ----------------------------
-# Main
 # ----------------------------
 def main():
     if len(sys.argv) < 2:
@@ -165,43 +114,41 @@ def main():
         return
 
     bags_root = sys.argv[1]
-    print(f"[INFO] Using bags directory: {bags_root}")
-
-    all_wifi_msgs, labels, all_bssids = load_wifi_data(bags_root)
+    all_wifi_msgs, labels, all_bssids, groups = load_wifi_data(bags_root)
     if not all_wifi_msgs:
         print("[ERROR] No WiFi messages found. Exiting.")
         return
 
-    X_train, y_train, X_test, y_test = prepare_datasets(all_wifi_msgs, labels, all_bssids)
-    if X_train.size == 0 or y_train.size == 0:
-        print("[ERROR] No training data available. Exiting.")
-        return
-
-    model = train_linear_regressor(X_train, y_train)
+    X, y, groups = prepare_dataset(all_wifi_msgs, labels, all_bssids, groups)
 
     # ----------------------------
-    # Evaluate on test set
-    # ----------------------------
-    y_pred = model.predict(X_test)
-    mse = mean_squared_error(y_test, y_pred)
-    errors = np.linalg.norm(y_pred - y_test, axis=1)
-    print(f"[INFO] Test MSE: {mse:.3f}")
-    print(f"[INFO] Mean Euclidean distance error: {np.mean(errors):.2f} units")
-    for i in range(min(5, len(y_test))):
-        print(f"True: {y_test[i]}, Predicted: {y_pred[i]}")
+    # Preprocessing pipeline
+    imputer = SimpleImputer(strategy='mean')
+    selector = VarianceThreshold(threshold=0.1)
+    scaler = StandardScaler()
+    pca = PCA(n_components=min(20, X.shape[1]))
+    preprocessor = Pipeline([
+        ('imputer', imputer),
+        ('selector', selector),
+        ('scaler', scaler),
+        ('pca', pca)
+    ])
+    X_proc = preprocessor.fit_transform(X)
 
-    # ----------------------------
-    # Save model & BSSIDs
-    # ----------------------------
+    # Train GPR on processed features
+    final_gps_list = train_gaussian_regressor(X_proc, y)
+    final_model = MultiGPR(final_gps_list)
+
     pkg_share = get_package_share_directory('wifi_predict')
     output_dir = os.path.join(pkg_share, OUTPUT_DIR_NAME)
     os.makedirs(output_dir, exist_ok=True)
 
-    joblib.dump(model, os.path.join(output_dir, "gpr_model.pkl"))
+    joblib.dump(final_model, os.path.join(output_dir, "gpr_model.pkl"))
+    joblib.dump(preprocessor, os.path.join(output_dir, "preprocessor.pkl"))
     with open(os.path.join(output_dir, "fingerprint_bssids.yaml"), "w") as f:
         yaml.dump({"bssids": all_bssids}, f)
 
-    print(f"[INFO] Model and BSSIDs saved to {output_dir}")
+    print(f"[INFO] Model, pipeline, and BSSIDs saved to {output_dir}")
 
 
 if __name__ == "__main__":
