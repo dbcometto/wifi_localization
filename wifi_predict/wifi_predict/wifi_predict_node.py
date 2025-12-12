@@ -6,11 +6,11 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Point
-from wifi_interface.msg import WifiList
+from wifi_interface.msg import WifiList, WifiPosition
 import joblib
 from ament_index_python.packages import get_package_share_directory
-from wifi_predict.gpr_utils import MultiGPR
-from sklearn.pipeline import Pipeline
+# from wifi_predict.gpr_utils import MultiGPR
+# from sklearn.pipeline import Pipeline
 
 OUTPUT_DIR_NAME = "runtime_1D_fingerprint_data"
 
@@ -36,8 +36,12 @@ class WifiPredictorNode(Node):
 
         # Publisher & subscriber
         self.pred_pub = self.create_publisher(Point, '/wifi_predicted_position', 10)
+        self.kf_pub = self.create_publisher(WifiPosition, '/wifi_kf_position', 10)
         self.sub = self.create_subscription(WifiList, '/wifi', self.wifi_callback, 10)
 
+        self.get_logger().info("wifi_predict_node ready.")
+
+    # Convert WifiList to RSSI vector in correct BSSID order
     def wifi_to_vector(self, msg):
         rss_map = {m.bssid: m.rssi for m in msg.measurements}
         vec = [rss_map.get(b, np.nan) for b in self.all_bssids]
@@ -47,16 +51,50 @@ class WifiPredictorNode(Node):
         if not msg.measurements:
             self.get_logger().warn("Received empty WifiList")
             return
+        
+        # Preprocess
         X_raw = self.wifi_to_vector(msg)
         try:
             X = self.preprocessor.transform(X_raw)
-            pred = self.model.predict(X)
+
+            # -------------------------------
+            # GPR prediction WITH covariance
+            # -------------------------------
+            mean, cov = self.model.predict(X, return_cov=True)
+
+            # mean: shape (1, 2)
+            # cov: shape (1, 2, 2)
+
+            x_mean = float(mean[0, 0])
+            y_mean = float(mean[0, 1])
+
+            xx = float(cov[0][0, 0])
+            xy = float(cov[0][0, 1])
+            yx = float(cov[0][1, 0])
+            yy = float(cov[0][1, 1])
+
+            # -------------------------------
+            # Publish backward-compatible message
+            # -------------------------------
             point = Point()
-            point.x = float(pred[0, 0])
-            point.y = float(pred[0, 1]) if pred.shape[1] > 1 else 0.0
+            point.x = x_mean
+            point.y = y_mean
             point.z = 0.0
             self.pred_pub.publish(point)
-            self.get_logger().info(f"Predicted position: {point}")
+
+            # -------------------------------
+            # Publish new Kalman-compatible message
+            # -------------------------------
+            kf_msg = WifiPosition()
+            kf_msg.x = x_mean
+            kf_msg.y = y_mean
+            kf_msg.covariance = [xx, xy, yx, yy]
+            self.kf_pub.publish(kf_msg)
+
+            self.get_logger().info(
+                f"Predicted: ({x_mean:.2f}, {y_mean:.2f})  "
+                f"Cov=[[{xx:.3f}, {xy:.3f}], [{yx:.3f}, {yy:.3f}]]"
+            )
         except Exception as e:
             self.get_logger().error(f"Prediction failed: {e}")
 

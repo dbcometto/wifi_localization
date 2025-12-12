@@ -13,6 +13,7 @@ find_package(sensor_msgs REQUIRED)
 set(msg_files
   "msg/WifiList.msg"
   "msg/WifiMeasurement.msg"
+  "msg/WifiPosition.msg"
 )
 set(srv_files
 )
