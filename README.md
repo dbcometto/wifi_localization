@@ -14,7 +14,7 @@ Repo for EECE 5554 RSN Final Project
 
 
 
-## Installing this repo
+## Installation
 
 Begin by creating your workspace such as `.../wifi_ws/`.
 
