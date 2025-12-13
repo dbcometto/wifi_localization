@@ -86,6 +86,8 @@ class WifiPredictorNode(Node):
             # Publish new Kalman-compatible message
             # -------------------------------
             kf_msg = WifiPosition()
+            kf_msg.header.stamp = self.get_clock().now().to_msg()
+            kf_msg.header.frame_id = "wifi_map"
             kf_msg.x = x_mean
             kf_msg.y = y_mean
             kf_msg.covariance = [xx, xy, yx, yy]
