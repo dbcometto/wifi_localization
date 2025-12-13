@@ -1,101 +1,115 @@
+#!/usr/bin/env python3
+
+import os
+import yaml
+import numpy as np
 import rclpy
 from rclpy.node import Node
+from geometry_msgs.msg import Point
+from wifi_interface.msg import WifiList, WifiPosition
+import joblib
+from ament_index_python.packages import get_package_share_directory
+# from wifi_predict.gpr_utils import MultiGPR
+# from sklearn.pipeline import Pipeline
 
-# from vn_interface.msg import Vectornav
-import serial
-import time
-import scipy as sp
+OUTPUT_DIR_NAME = "runtime_1D_fingerprint_data"
 
-
-
-
-class WifiPredictor(Node):
-
+class WifiPredictorNode(Node):
     def __init__(self):
-        super().__init__('minimal_publisher')
+        super().__init__('wifi_predict_node')
 
-        # self.get_logger().info("Starting up!")
+        pkg_share = get_package_share_directory('wifi_predict')
+        model_dir = os.path.join(pkg_share, OUTPUT_DIR_NAME)
 
-        # pub_topic = (
-        #     self.declare_parameter("pub_topic","/imu")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        # Load trained model
+        model_path = os.path.join(model_dir, "gpr_model.pkl")
+        self.model = joblib.load(model_path)
 
-        # port = (
-        #     self.declare_parameter("port","/dev/pts/8")
-        #     .get_parameter_value()
-        #     .string_value
-        # )
+        # Load preprocessing pipeline
+        preproc_path = os.path.join(model_dir, "preprocessor.pkl")
+        self.preprocessor = joblib.load(preproc_path)
 
-        # # Open serial port
-        # self.connected = False
-        # while not self.connected:
-        #     try:
-        #         # self.get_logger().info("Trying to connect to port")
-        #         self.serial = serial.Serial(port, 115200, timeout=0.1)
-        #         self.connected = True
-        #         self.get_logger().info("Connected to port")
-        #     except Exception as e:
-        #         self.get_logger().info("Failed to open port... trying again in 2 sec")
-        #         time.sleep(2)
+        # Load BSSIDs
+        bssid_path = os.path.join(model_dir, "fingerprint_bssids.yaml")
+        with open(bssid_path, "r") as f:
+            self.all_bssids = yaml.safe_load(f)["bssids"]
 
+        # Publisher & subscriber
+        self.pred_pub = self.create_publisher(Point, '/wifi_predicted_position', 10)
+        self.kf_pub = self.create_publisher(WifiPosition, '/wifi_kf_position', 10)
+        self.sub = self.create_subscription(WifiList, '/wifi', self.wifi_callback, 10)
 
-        # # Set IMU settings
-        # self.serial.write(b"$VNWRG,06,14*59\n")
-        # self.serial.write(b"$VNWRG,07,40*59\n")
+        self.get_logger().info("wifi_predict_node ready.")
 
-        # # Establish timer/publisher
-        # timer_period = 0.01  # seconds
-        # self.timer = self.create_timer(timer_period, self.timer_callback)
+    # Convert WifiList to RSSI vector in correct BSSID order
+    def wifi_to_vector(self, msg):
+        rss_map = {m.bssid: m.rssi for m in msg.measurements}
+        vec = [rss_map.get(b, np.nan) for b in self.all_bssids]
+        return np.array(vec).reshape(1, -1)
 
-        # self.publisher = self.create_publisher(Vectornav, pub_topic, 10)
+    def wifi_callback(self, msg):
+        if not msg.measurements:
+            self.get_logger().warn("Received empty WifiList")
+            return
+        
+        # Preprocess
+        X_raw = self.wifi_to_vector(msg)
+        try:
+            X = self.preprocessor.transform(X_raw)
 
-        # self.get_logger().info("Set up and working!")
+            # -------------------------------
+            # GPR prediction WITH covariance
+            # -------------------------------
+            mean, cov = self.model.predict(X, return_cov=True)
 
+            # mean: shape (1, 2)
+            # cov: shape (1, 2, 2)
 
+            x_mean = float(mean[0, 0])
+            y_mean = float(mean[0, 1])
 
+            xx = float(cov[0][0, 0])
+            xy = float(cov[0][0, 1])
+            yx = float(cov[0][1, 0])
+            yy = float(cov[0][1, 1])
 
+            # -------------------------------
+            # Publish backward-compatible message
+            # -------------------------------
+            point = Point()
+            point.x = x_mean
+            point.y = y_mean
+            point.z = 0.0
+            self.pred_pub.publish(point)
 
-    def timer_callback(self):
-        pass
+            # -------------------------------
+            # Publish new Kalman-compatible message
+            # -------------------------------
+            kf_msg = WifiPosition()
+            kf_msg.header.stamp = self.get_clock().now().to_msg()
+            kf_msg.header.frame_id = "wifi_map"
+            kf_msg.x = x_mean
+            kf_msg.y = y_mean
+            kf_msg.covariance = [xx, xy, yx, yy]
+            self.kf_pub.publish(kf_msg)
 
-        # self.get_logger().info("Timer CB")
-        # while self.serial.in_waiting > 0:
-        #     serialRead = self.serial.readline().decode('utf-8')
-        #     # self.get_logger().info(f"Reading: {serialRead}")
-
-        #     data = self.processString(serialRead)
-        #     # self.get_logger().info(f"Data: {data}")
-
-        #     if data:
-        #         msg = self.make_message(data)
-
-        #         msg.raw_string = serialRead
-
-        #         self.publisher.publish(msg)
-        #         self.get_logger().info(f"Publishing: {msg}")
-
-
-
-
-
-
-
+            self.get_logger().info(
+                f"Predicted: ({x_mean:.2f}, {y_mean:.2f})  "
+                f"Cov=[[{xx:.3f}, {xy:.3f}], [{yx:.3f}, {yy:.3f}]]"
+            )
+        except Exception as e:
+            self.get_logger().error(f"Prediction failed: {e}")
 
 def main(args=None):
     rclpy.init(args=args)
-
-    minimal_publisher = WifiPredictor()
-
+    node = WifiPredictorNode()
     try:
-        rclpy.spin(minimal_publisher)
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        print("Shutting down!")
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
-    minimal_publisher.destroy_node()
-    rclpy.shutdown()
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
