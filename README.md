@@ -14,21 +14,18 @@ Repo for EECE 5554 RSN Final Project
 
 
 
-## Running this repo
+## Installing this repo
 
-To run this repo on collected data, please create your workspace `.../workspace/`
+Begin by creating your workspace such as `.../wifi_ws/`.
 
-Place this repo in the source folder folder
-
-`mkdir src`
-
-`cd src`
-
-`git clone ...`
-
-Once cloned, please move the `analysis` and `bags` folders up one directory to the main workspace folder
+Next, place this repo in the source folder.  From the workspace directory, run
 ```bash
-mv bags/ analysis/ ..
+mkdir src && cd src && git clone https://github.com/dbcometto/wifi_localization.git
+```
+
+Once cloned, move the `bags` folders up one directory into the main workspace folder
+```bash
+mv bags/ ..
 ```
 
 Additionally, certain packages must be installed.  Run
