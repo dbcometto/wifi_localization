@@ -1,5 +1,9 @@
-# wifi_localization
-Repo for EECE 5554 RSN Final Project
+# Localization via Wi-Fi through RSSI/BSSID Pair Training
+This repo contains a variety of ROS2 packages for a system developed for Northeastern University's
+ECEE 5554 - Robotic Sensing and Navigation class.  This was developed using ROS2 Jazzy.
+
+The system serves to predict grid position based on collected WiFi RSSI-BSSID pairs after
+an initial data collection and training.
 
 
 | Package          | Description                                |  Owner |
@@ -37,6 +41,13 @@ It may be necessary to add `--break-system-packages`, if desired.
 Then you should be able to build and run the repo!
 
 
+## Training the model
+
+Once the data bags are moved into the parent workspace folder, running 
+```bash
+ros2 launch wifi_predict train.launch.py
+```
+will train the model.  It is currently set to work on Data Collection 2.
 
 
 
