@@ -37,7 +37,7 @@ class WifiPredictorNode(Node):
         # Publisher & subscriber
         self.pred_pub = self.create_publisher(Point, '/wifi_predicted_position', 10)
         self.kf_pub = self.create_publisher(WifiPosition, '/wifi_kf_position', 10)
-        self.sub = self.create_subscription(WifiList, '/wifi', self.wifi_callback, 10)
+        self.sub = self.create_subscription(WifiList, '/filtered_wifi_data', self.wifi_callback, 10)
 
         self.get_logger().info("wifi_predict_node ready.")
 

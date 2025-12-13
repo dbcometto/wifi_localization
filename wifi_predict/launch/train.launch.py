@@ -36,20 +36,22 @@ def generate_launch_description():
         output="screen"
     )
 
-    # # 3. Training process
-    # train_process = ExecuteProcess(
-    #     cmd=["python3", "-u", train_script, bags_root],         # unbuffered stdout for real-time logging
-    #     output="screen"
-    # )
+    # 3. Training process
+    train_process = ExecuteProcess(
+        cmd=["python3", "-u", train_script, bags_root],         # unbuffered stdout for real-time logging
+        output="screen"
+    )
 
-    # # Start predictor only *after training finishes*
-    # start_predictor_after_training = RegisterEventHandler(
-    #     event_handler=OnProcessExit(
-    #         target_action=train_process,
-    #         on_exit=[predictor_node]
-    #     )
-    # )
+    # Start predictor only *after training finishes*
+    start_predictor_after_training = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=train_process,
+            on_exit=[predictor_node]
+        )
+    )
 
     return LaunchDescription([
-        predictor_node
+        # wifi_driver_node,                 # start your wifi driver
+        train_process,                    # run training (blocking)
+        start_predictor_after_training    # start predictor after training
     ])

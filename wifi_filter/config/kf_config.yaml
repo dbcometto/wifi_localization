@@ -1,4 +1,4 @@
 wifi_kf:
   ros__parameters:
-    input_topic: "/pose_estimate"
+    input_topic: "/wifi_kf_position"
     output_topic: "/pose"

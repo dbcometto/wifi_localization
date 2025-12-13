@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.conditions import IfCondition
+from launch.conditions import UnlessCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -22,12 +22,13 @@ def generate_launch_description():
 
     #======================# Launch Arguments #======================#
 
-    # la_input_topic = DeclareLaunchArgument(
-    #     'input_topic', 
-    #     default_value = '/pose_estimate',
-    #     description = "Input topic to filter"
-    # )
-    # ld.add_action(la_input_topic)
+    la_use_sim = DeclareLaunchArgument(
+        'use_sim', 
+        default_value = 'false',
+        description = "If true, prevents the launch of the driver node"
+    )
+    ld.add_action(la_use_sim)
+    use_sim = LaunchConfiguration('use_sim')
 
     # la_output_topic = DeclareLaunchArgument(
     #     'output_topic', 
@@ -50,7 +51,8 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(sensor_launch_file),
         launch_arguments={
             #'port': LaunchConfiguration('vn_port')
-        }.items()
+        }.items(),
+        condition=UnlessCondition(use_sim)
     )
 
     ld.add_action(sensor_launch)
@@ -77,20 +79,20 @@ def generate_launch_description():
 
 
 
-    # pred_launch_file = os.path.join(
-    #     get_package_share_directory('wifi_predict'),
-    #     'launch',
-    #     'predict.launch.py'
-    # )
+    pred_launch_file = os.path.join(
+        get_package_share_directory('wifi_predict'),
+        'launch',
+        'start_predictor.launch.py'
+    )
 
-    # pred_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(pred_launch_file),
-    #     launch_arguments={
-    #         #'port': LaunchConfiguration('vn_port')
-    #     }.items()
-    # )
+    pred_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(pred_launch_file),
+        launch_arguments={
+            #'port': LaunchConfiguration('vn_port')
+        }.items()
+    )
 
-    # ld.add_action(pred_launch)
+    ld.add_action(pred_launch)
 
 
 
