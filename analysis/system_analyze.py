@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as signal
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from math import sqrt
 
 def grab_raw_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17', storage_id='mcap', msg_type = WifiPosition):
     all_data = []
@@ -30,7 +31,7 @@ def grab_raw_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization
     return all_data
 
 
-def grab_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags/0_0_0_11-17', storage_id='mcap', msg_type = PoseWithCovarianceStamped):
+def grab_data(uri = './bags/0_0_0_11-17', storage_id='mcap', msg_type = PoseWithCovarianceStamped):
     all_data = []
 
     reader = rosbag2_py.SequentialReader()
@@ -56,7 +57,7 @@ def grab_data(uri = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bag
 
 
 #==========================# Function #==========================#
-def analyze_data(folder_path = '/home/dbcometto/workspace/wifi_ws/src/wifi_localization/bags',
+def analyze_data(folder_path = '../bags',
                  fig_title  = "Default Dataset 0_0",
                  start_time = 0,
                  stop_time  = 1000):
@@ -81,6 +82,7 @@ def analyze_data(folder_path = '/home/dbcometto/workspace/wifi_ws/src/wifi_local
     test_x_list = ["0","0","1","2p5"]
     test_y_list = ["2","2p5","0","2"]
 
+    rmse_total = 0
     for test_index in range(len(test_x_list)):
         test_x = test_x_list[test_index]
         test_y = test_y_list[test_index]
@@ -127,9 +129,21 @@ def analyze_data(folder_path = '/home/dbcometto/workspace/wifi_ws/src/wifi_local
 
         #=====================# Calculations #=====================#
 
+        # RSME Calculation
+        err = 0
+        for i in range(len(output_x)):
+            err += ((output_x[i] - true_x) ** 2) + ((output_y[i] - true_y) ** 2)
+        
+        err = err / len(output_x)
 
-    
+        err = sqrt(err)
 
+        # Convert from gridpoint error to error in meters
+        err = err*2*0.3048
+
+        print(f"RMSE for point {true_x, true_y}:\n{err} meters\n")
+
+        rmse_total += err
 
         #=====================# Plotting #=====================#
 
@@ -166,6 +180,8 @@ def analyze_data(folder_path = '/home/dbcometto/workspace/wifi_ws/src/wifi_local
         axs2[r,c].set_ylim(0,3)
 
 
+    rmse_total = rmse_total / len(test_x_list)
+    print(f"Averaged RMSE for whole system: {rmse_total} meters")
 
 
     
